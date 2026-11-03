@@ -7,7 +7,14 @@ from pathlib import Path
 # Add ai-service to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from utils.plate_normalizer import normalize_plate, is_plausible_indian_plate
+from utils.plate_normalizer import (
+    normalize_plate,
+    is_plausible_indian_plate,
+    parse_indian_plate,
+    INDIAN_STATE_CODES,
+)
+from ai.ocr import _correct_indian_plate, OcrResult, OCRService
+from ai.plate_detector import PlateDetector
 from ai.reid import ReIdService, ReIdEmbedding
 from ai.dehazer import ImageDehazer
 from ai.color_classifier import ColorClassifier
@@ -20,7 +27,28 @@ def test_plate_normalizer():
     assert normalize_plate("MH-12-AB-1234") == "MH12AB1234"
     assert normalize_plate("DL 01 C AA 1111") == "DL01CAA1111"
     assert is_plausible_indian_plate("MH12AB1234") is True
+    assert is_plausible_indian_plate("22BH1234AA") is True  # Bharat Series
     assert is_plausible_indian_plate("XYZ") is False
+
+    parsed_std = parse_indian_plate("MH 12 AB 1234")
+    assert parsed_std.is_valid is True
+    assert parsed_std.state_code == "MH"
+    assert parsed_std.district_code == "12"
+    assert parsed_std.series == "AB"
+    assert parsed_std.number == "1234"
+
+    parsed_bh = parse_indian_plate("22 BH 1234 AA")
+    assert parsed_bh.is_valid is True
+    assert parsed_bh.is_bh_series is True
+    assert parsed_bh.number == "1234"
+
+
+def test_plate_character_correction():
+    # Positional OCR error correction
+    assert _correct_indian_plate("MH1sTC554") == "MH15TC554"
+    assert _correct_indian_plate("228H1234AA") == "22BH1234AA"
+    assert _correct_indian_plate("MHI2AB1234") == "MH12AB1234"
+    assert _correct_indian_plate("MH12AB1234") == "MH12AB1234"
 
 
 def test_color_classifier():
@@ -53,6 +81,18 @@ def test_reid_service():
     assert sim_same >= 0.90
 
 
+def test_plate_detector_on_crop():
+    detector = PlateDetector()
+    crop = np.zeros((150, 200, 3), dtype=np.uint8)
+    # Draw a synthetic white plate in lower half
+    crop[100:130, 40:160] = 255
+    plates = detector.detect(crop)
+    assert len(plates) >= 1
+    best = plates[0]
+    assert best.confidence > 0.0
+    assert best.bbox[0] >= 0 and best.bbox[2] <= 200
+
+
 def test_dehazer():
     dehazer = ImageDehazer()
     hazy_img = np.ones((100, 100, 3), dtype=np.uint8) * 200
@@ -79,4 +119,3 @@ def test_identity_scorer():
     assert match_res.is_match is True
     assert match_res.plate_score > 0.8
     assert match_res.reid_score > 0.8
-

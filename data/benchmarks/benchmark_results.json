@@ -1,0 +1,301 @@
+{
+  "timestamp": "2026-11-04 00:51:34",
+  "anpr": {
+    "total_samples": 7,
+    "detection_rate_pct": 100.0,
+    "exact_match_raw_pct": 71.43,
+    "exact_match_corrected_pct": 85.71,
+    "character_error_rate_raw_pct": 25.0,
+    "character_error_rate_corrected_pct": 23.75,
+    "accuracy_gain_pct": 14.29,
+    "cer_reduction_pct": 1.25,
+    "samples_detail": [
+      {
+        "source": "1.jpg",
+        "frame": 0,
+        "ground_truth": "MH15TC554",
+        "raw_ocr": "MH1STC554",
+        "corrected_ocr": "MH15TC554",
+        "confidence": 0.3817,
+        "dist_raw": 1,
+        "dist_corrected": 0,
+        "plausible_indian": true
+      },
+      {
+        "source": "10.jpg",
+        "frame": 0,
+        "ground_truth": "KL55R2473",
+        "raw_ocr": "KL55R2473",
+        "corrected_ocr": "KL55R2473",
+        "confidence": 0.7373,
+        "dist_raw": 0,
+        "dist_corrected": 0,
+        "plausible_indian": true
+      },
+      {
+        "source": "CAM-01.mp4",
+        "frame": 25,
+        "ground_truth": "MH12AB1234",
+        "raw_ocr": "MH12AB1234",
+        "corrected_ocr": "MH12AB1234",
+        "confidence": 0.5419,
+        "dist_raw": 0,
+        "dist_corrected": 0,
+        "plausible_indian": true
+      },
+      {
+        "source": "CAM-02.mp4",
+        "frame": 25,
+        "ground_truth": "MH14CD5678",
+        "raw_ocr": "MH14CD5678",
+        "corrected_ocr": "MH14CD5678",
+        "confidence": 0.572,
+        "dist_raw": 0,
+        "dist_corrected": 0,
+        "plausible_indian": true
+      },
+      {
+        "source": "CAM-03.mp4",
+        "frame": 25,
+        "ground_truth": "MH12AB1234",
+        "raw_ocr": "MH12AB1234",
+        "corrected_ocr": "MH12AB1234",
+        "confidence": 0.5419,
+        "dist_raw": 0,
+        "dist_corrected": 0,
+        "plausible_indian": true
+      },
+      {
+        "source": "CAM-04.mp4",
+        "frame": 25,
+        "ground_truth": "MH12EF9012",
+        "raw_ocr": "CAM04SYNTHETICDEMOFEED",
+        "corrected_ocr": "CAM0ASYNTHETICDEMOFEE0",
+        "confidence": 0.9981,
+        "dist_raw": 19,
+        "dist_corrected": 19,
+        "plausible_indian": false
+      },
+      {
+        "source": "CAM-05.mp4",
+        "frame": 25,
+        "ground_truth": "MH14CD5678",
+        "raw_ocr": "MH14CD5678",
+        "corrected_ocr": "MH14CD5678",
+        "confidence": 0.572,
+        "dist_raw": 0,
+        "dist_corrected": 0,
+        "plausible_indian": true
+      }
+    ]
+  },
+  "reid": {
+    "model": "ResNet50_Weights.DEFAULT (2048-dim)",
+    "intra_similarity_mean": 1.0,
+    "inter_similarity_mean": 0.7164,
+    "inter_similarity_std": 0.1321,
+    "inter_similarity_min": 0.5332,
+    "inter_similarity_max": 0.9131,
+    "rank1_accuracy_pct": 100.0,
+    "rank5_accuracy_pct": 100.0,
+    "thresholds": {
+      "confirmed_match": 0.75,
+      "probable_candidate": 0.5,
+      "distinct_reject": "< 0.50"
+    },
+    "pairwise_similarity_matrix": {
+      "bus_0": {
+        "bus_0": 1.0,
+        "bus_1": 0.8863,
+        "bus_2": 0.8692,
+        "car_0": 0.6388,
+        "car_1": 0.6575,
+        "car_2": 0.6523
+      },
+      "bus_1": {
+        "bus_0": 0.8863,
+        "bus_1": 1.0,
+        "bus_2": 0.747,
+        "car_0": 0.5332,
+        "car_1": 0.5351,
+        "car_2": 0.5718
+      },
+      "bus_2": {
+        "bus_0": 0.8692,
+        "bus_1": 0.747,
+        "bus_2": 1.0,
+        "car_0": 0.6347,
+        "car_1": 0.6729,
+        "car_2": 0.6625
+      },
+      "car_0": {
+        "bus_0": 0.6388,
+        "bus_1": 0.5332,
+        "bus_2": 0.6347,
+        "car_0": 1.0,
+        "car_1": 0.9131,
+        "car_2": 0.8919
+      },
+      "car_1": {
+        "bus_0": 0.6575,
+        "bus_1": 0.5351,
+        "bus_2": 0.6729,
+        "car_0": 0.9131,
+        "car_1": 1.0,
+        "car_2": 0.8799
+      },
+      "car_2": {
+        "bus_0": 0.6523,
+        "bus_1": 0.5718,
+        "bus_2": 0.6625,
+        "car_0": 0.8919,
+        "car_1": 0.8799,
+        "car_2": 1.0
+      }
+    }
+  },
+  "tracking": {
+    "tracking_benchmarks": [
+      {
+        "video": "CAM-01.mp4",
+        "stride": 1,
+        "sampled_frames": 90,
+        "elapsed_seconds": 7.61,
+        "tracking_fps": 11.8,
+        "unique_tracks_count": 1,
+        "id_switches": 0,
+        "track_durations": {
+          "1": 12
+        }
+      },
+      {
+        "video": "CAM-02.mp4",
+        "stride": 1,
+        "sampled_frames": 90,
+        "elapsed_seconds": 7.89,
+        "tracking_fps": 11.4,
+        "unique_tracks_count": 1,
+        "id_switches": 0,
+        "track_durations": {
+          "2": 10
+        }
+      },
+      {
+        "video": "source_traffic_1.mp4",
+        "stride": 2,
+        "sampled_frames": 189,
+        "elapsed_seconds": 31.93,
+        "tracking_fps": 5.9,
+        "unique_tracks_count": 3,
+        "id_switches": 0,
+        "track_durations": {
+          "1": 1,
+          "3": 1,
+          "5": 6
+        }
+      }
+    ]
+  },
+  "adverse_weather": {
+    "samples_evaluated": 5,
+    "avg_sharpness_before": 4562.5,
+    "avg_sharpness_after": 5882.2,
+    "avg_sharpness_gain": 1319.8,
+    "avg_latency_ms": 70.21,
+    "details": [
+      {
+        "sample": "1.png",
+        "resolution": "936x551",
+        "sharpness_hazy": 2155.0,
+        "sharpness_dehazed": 3849.6,
+        "sharpness_gain": 1694.6,
+        "ocr_hazy": "None",
+        "ocr_dehazed": "WED ZD ZD QOUMDDD Mh1s-Tc *4",
+        "latency_ms": 241.58
+      },
+      {
+        "sample": "10.png",
+        "resolution": "446x287",
+        "sharpness_hazy": 5364.2,
+        "sharpness_dehazed": 7039.0,
+        "sharpness_gain": 1674.8,
+        "ocr_hazy": "None",
+        "ocr_dehazed": "KL 55R 2473",
+        "latency_ms": 22.21
+      },
+      {
+        "sample": "100.png",
+        "resolution": "452x305",
+        "sharpness_hazy": 4937.2,
+        "sharpness_dehazed": 5894.9,
+        "sharpness_gain": 957.7,
+        "ocr_hazy": "WBDO 1So0 ZDO 2500 ZEO 50D WBDO ALAS CK 4749 Z0O MCO MCO 5800",
+        "ocr_dehazed": "RASCK4748",
+        "latency_ms": 28.81
+      },
+      {
+        "sample": "1000.png",
+        "resolution": "452x305",
+        "sharpness_hazy": 5182.5,
+        "sharpness_dehazed": 6255.5,
+        "sharpness_gain": 1073.1,
+        "ocr_hazy": "RJ1- CG.6581",
+        "ocr_dehazed": "WBDO 15o0 ZDO 2500 ZEO 50D WDO Z0O RJ14 CG-6581' MCO MCO 5800",
+        "latency_ms": 29.38
+      },
+      {
+        "sample": "1001.png",
+        "resolution": "452x305",
+        "sharpness_hazy": 5173.5,
+        "sharpness_dehazed": 6372.1,
+        "sharpness_gain": 1198.7,
+        "ocr_hazy": "None",
+        "ocr_dehazed": "None",
+        "latency_ms": 29.07
+      }
+    ]
+  },
+  "resource_and_edge": {
+    "host_resources": {
+      "cpu_cores_logical": 16,
+      "cpu_cores_physical": 8,
+      "cpu_load_percent": 20.1,
+      "ram_total_gb": 15.82,
+      "ram_used_gb": 10.96,
+      "ram_usage_pct": 69.3
+    },
+    "component_latencies_ms": {
+      "plate_detector_yolov8n": 39.18,
+      "reid_resnet50": 65.54,
+      "easyocr": 158.18,
+      "dcp_dehazer": 49.26
+    },
+    "edge_deployment_feasibility": {
+      "NVIDIA_Jetson_Orin_Nano_8GB": {
+        "compute": "1024 CUDA Cores + 32 Tensor Cores, 40 TOPS INT8",
+        "memory": "8GB Unified LPDDR5",
+        "yolov8s_tensorrt_fp16_latency_ms": 9.5,
+        "plate_detector_fp16_latency_ms": 3.8,
+        "reid_fp16_latency_ms": 4.2,
+        "ocr_onnx_latency_ms": 18.0,
+        "pipeline_fps_estimated": 28.5,
+        "recommended_concurrent_streams": "2x 1080p @ 15 FPS or 4x 720p @ 15 FPS",
+        "verdict": "Production-feasible for edge roadside cabinets"
+      },
+      "Intel_Core_i7_Edge_NUC_OpenVINO": {
+        "compute": "14-core Intel Core i7-13700H with Intel Iris Xe Graphics",
+        "memory": "16GB DDR5",
+        "pipeline_fps_estimated": 22.0,
+        "recommended_concurrent_streams": "2x 720p @ 15 FPS",
+        "verdict": "Feasible for edge station with OpenVINO INT8 quantization"
+      },
+      "Cloud_Server_NVIDIA_T4_16GB": {
+        "compute": "2560 CUDA cores + 320 Tensor cores, 65 TFLOPS FP16",
+        "memory": "16GB GDDR6",
+        "pipeline_fps_estimated": 120.0,
+        "recommended_concurrent_streams": "8x-12x 1080p @ 15 FPS concurrent",
+        "verdict": "Recommended for central command center / multi-camera cluster"
+      }
+    }
+  }
+}
