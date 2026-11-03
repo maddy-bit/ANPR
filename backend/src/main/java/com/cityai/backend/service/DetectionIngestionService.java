@@ -63,7 +63,10 @@ public class DetectionIngestionService {
         Vehicle vehicle = null;
         String normalizedPlate = request.plateTextNormalized();
         if (normalizedPlate != null && !normalizedPlate.isBlank()) {
-            vehicle = resolveOrCreateVehicle(normalizedPlate);
+            // Only associate with vehicle identity if OCR confidence is reliable (>= 0.30)
+            if (request.plateConfidence() != null && request.plateConfidence() >= 0.30) {
+                vehicle = resolveOrCreateVehicle(normalizedPlate);
+            }
         }
 
         VehicleDetection detection = new VehicleDetection(vehicle, camera, request.timestamp());
@@ -77,6 +80,11 @@ public class DetectionIngestionService {
         detection.setPlateConfidence(request.plateConfidence());
         detection.setTrackId(request.trackId());
         detection.setFrameNumber(request.frameNumber());
+        detection.setImagePath(request.imagePath());
+        detection.setReidConfidence(request.reidConfidence());
+        if (request.reidEmbedding() != null && !request.reidEmbedding().isEmpty()) {
+            detection.setReidEmbedding(request.reidEmbedding().toString());
+        }
         VehicleDetection saved = detectionRepository.save(detection);
 
         if (vehicle != null) {

@@ -60,14 +60,13 @@ public class VehicleController {
                 detectionRepository.findByVehicle_PlateOrderByTimestampAsc(normalized);
 
         if (detections.isEmpty()) {
-            List<String> demoCameras = List.of("CAM-01", "CAM-03", "CAM-07", "CAM-11");
             return new VehicleSummaryDto(
                     VehicleDto.from(vehicle),
-                    java.time.Instant.parse("2026-08-30T18:14:23Z"),
-                    java.time.Instant.parse("2026-08-30T18:48:02Z"),
-                    demoCameras.size(),
-                    demoCameras,
-                    15
+                    null,
+                    null,
+                    0,
+                    List.of(),
+                    0
             );
         }
 

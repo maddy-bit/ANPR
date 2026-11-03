@@ -61,6 +61,9 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      BACKEND_URL: http://backend:8080
+      INGEST_USERNAME: ingest
+      INGEST_PASSWORD: change-me-in-production
     volumes:
       - ./videos:/app/videos:ro
       - ./data:/data

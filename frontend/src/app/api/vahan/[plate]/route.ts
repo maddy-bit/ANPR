@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVehicleRegistryRecord, IndianVehicleRcRecord, INDIAN_STATE_NAMES } from "@/lib/registry";
+import { type IndianVehicleRcRecord, INDIAN_STATE_NAMES } from "@/lib/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -12,18 +12,12 @@ export const dynamic = "force-dynamic";
  * No hardcoded details are used.
  */
 
-const DEFAULT_KEYS = [
-  "6f0881c1c1mshda5cc01a91b057dp1ac9f0jsn976262889eea",
-  // "d156d0718dmsheea716d9ceea5f8p1b7ee5jsn5c94aac163d7",
-  // "ed9bb104f5msh12c3cb721bd8e9cp17c550jsn43cc7df2cd47", // New primary key
-  "0724709417msh4efb2cee3613ee3p13687ajsn5c5258e6d4db", // Previous key (failover / reused after monthly quota reset)
-];
-
 function getRapidApiKeys(): string[] {
-  const envKey = process.env.RAPIDAPI_VAHAN_KEY?.trim();
-  const keys = envKey ? [envKey, ...DEFAULT_KEYS] : DEFAULT_KEYS;
-  // Deduplicate while preserving order
-  return Array.from(new Set(keys.filter((k) => typeof k === "string" && k.length > 10)));
+  const envKey = (process.env.RAPIDAPI_KEY || "").trim();
+  if (!envKey) {
+    return [];
+  }
+  return Array.from(new Set(envKey.split(",").map((k) => k.trim()).filter((k) => k.length > 10)));
 }
 
 const API_HOST = "rto-vehicle-information-india.p.rapidapi.com";
@@ -107,36 +101,8 @@ interface ApiData {
   permanent_address?: unknown;
 }
 
-// In-memory cache for live government responses successfully retrieved from RapidAPI
-const LIVE_API_CACHE = new Map<string, ApiData>([
-  [
-    "UP11BN5141",
-    {
-      registration_authority: "SAHARANPUR RTO, Uttar Pradesh",
-      registration_no: "UP11BN5141",
-      registration_date: "2018-11-16T00:00:00.000Z",
-      chassis_no: "ME4JF50AGJ80*****",
-      engine_no: "JF50E870*****",
-      owner_name: "M*. S****R K***R",
-      vehicle_class: "M-Cycle/Scooter",
-      fuel_type: "PETROL",
-      maker_model: "ACTIVA 5G",
-      fitness_upto: "2033-11-15T00:00:00.000Z",
-      insurance_upto: null,
-      fuel_norms: "BHARAT STAGE IV",
-      vehicle_info: {
-        brand_name: "HONDA MOTORCYCLE AND SCOOTER INDIA (P) LTD",
-        model_name: "ACTIVA 5G",
-      },
-      insurance_company: "ICICI  LOMBARD",
-      road_tax_paid_upto: "2033-11-15T00:00:00.000Z",
-      vehicle_color: "MAJESTIC BROWN METAL",
-      seat_capacity: 2,
-      rc_status: "ACTIVE",
-      ownership: 1,
-    },
-  ],
-]);
+// In-memory cache for live government responses successfully retrieved from RapidAPI during server runtime
+const LIVE_API_CACHE = new Map<string, ApiData>();
 
 function mapApiResponse(d: ApiData, cleanPlate: string): IndianVehicleRcRecord {
   const brand = str(d.vehicle_info?.brand_name);
@@ -223,21 +189,23 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ plate: string }> }
 ) {
+  const t0 = Date.now();
   const { plate } = await params;
   const cleanPlate = (plate ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 
-  // ── 1. Presentation Demo Number Plate: ET3633P ───────────────────────
-  // Pre-loaded for live presentation demonstrations
-  if (cleanPlate === "ET3633P" || cleanPlate === "MH12AB1234") {
-    const demoRecord = getVehicleRegistryRecord(cleanPlate);
-    return NextResponse.json({
-      source: "LIVE_PUBLIC_API",
-      latencyMs: 85,
-      data: demoRecord,
-    });
+  const apiKeys = getRapidApiKeys();
+  if (apiKeys.length === 0) {
+    return NextResponse.json(
+      {
+        error: "VAHAN_API_NOT_CONFIGURED",
+        message: "Vehicle Registry Integration Disabled. Live credentials are not configured on the server.",
+        plate: cleanPlate,
+      },
+      { status: 503 }
+    );
   }
 
-  // ── 2. Strict Plate Validation for all other plates ──────────────────────
+  // ── 1. Strict Plate Validation ──────────────────────────────────────────
   if (!cleanPlate || !isValidIndianPlate(cleanPlate)) {
     return NextResponse.json(
       {
@@ -249,23 +217,23 @@ export async function GET(
     );
   }
 
-  // ── 3. Check Live Query Cache (Conserves RapidAPI Monthly Quota) ───────
+  // ── 2. Check Live Query Cache (Conserves RapidAPI Monthly Quota) ───────
   if (LIVE_API_CACHE.has(cleanPlate)) {
     const cachedData = LIVE_API_CACHE.get(cleanPlate)!;
     const record = mapApiResponse(cachedData, cleanPlate);
     return NextResponse.json({
       source: "LIVE_PUBLIC_API",
-      latencyMs: 38,
+      latencyMs: Date.now() - t0,
       data: record,
     });
   }
 
-  const t0 = Date.now();
-
-  // ── 4. Real-Time VAHAN API Call with Multi-Key Failover ────────────────
-  const apiKeys = getRapidApiKeys();
+  // ── 3. Real-Time VAHAN API Call with Multi-Key Failover ────────────────
   let last429Message: string | null = null;
+  let lastErrorMessage: string | null = null;
   let saw429 = false;
+  let sawAuthError = false;
+  let sawTimeout = false;
 
   for (let i = 0; i < apiKeys.length; i++) {
     const currentKey = apiKeys[i];
@@ -273,6 +241,7 @@ export async function GET(
       const ctrl = new AbortController();
       const timeoutId = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 
+      let timedOut = false;
       const res = await fetch(API_URL, {
         method: "POST",
         signal: ctrl.signal,
@@ -287,11 +256,20 @@ export async function GET(
           consent_text: CONSENT_TEXT,
         }),
         cache: "no-store",
-      }).catch(() => null);
+      }).catch((fetchErr: unknown) => {
+        if (fetchErr instanceof Error && fetchErr.name === "AbortError") {
+          timedOut = true;
+          sawTimeout = true;
+        }
+        return null;
+      });
 
       clearTimeout(timeoutId);
 
       if (!res) {
+        if (timedOut) {
+          console.warn(`[VAHAN] RapidAPI request timed out with key ${currentKey.slice(0, 8)}...`);
+        }
         continue;
       }
 
@@ -303,7 +281,17 @@ export async function GET(
         console.warn(
           `[VAHAN] RapidAPI key ${currentKey.slice(0, 8)}... quota exceeded (429). Attempting fallback key (${i + 1}/${apiKeys.length})...`
         );
-        // Continue to next key in pool
+        continue;
+      }
+
+      // Check for 401/403 Authentication/Authorization Error
+      if (res.status === 401 || res.status === 403) {
+        sawAuthError = true;
+        const errJson = await res.json().catch(() => ({}));
+        lastErrorMessage = errJson.message || `RapidAPI returned HTTP ${res.status} (Authentication error).`;
+        console.warn(
+          `[VAHAN] RapidAPI key ${currentKey.slice(0, 8)}... failed with HTTP ${res.status}. Attempting fallback key (${i + 1}/${apiKeys.length})...`
+        );
         continue;
       }
 
@@ -324,7 +312,7 @@ export async function GET(
           });
         }
 
-        // status false or empty data -> vehicle not found in VAHAN
+        // status false or empty data -> vehicle genuinely not found in official VAHAN
         return NextResponse.json(
           {
             error: "VEHICLE_NOT_FOUND",
@@ -334,6 +322,10 @@ export async function GET(
           { status: 404 }
         );
       }
+
+      // Upstream server error (5xx)
+      const errJson = await res.json().catch(() => ({}));
+      lastErrorMessage = errJson.message || `Upstream VAHAN API returned HTTP ${res.status}.`;
     } catch (err: unknown) {
       console.warn(`[VAHAN] Error with key ${currentKey.slice(0, 8)}...:`, err);
       continue;
@@ -354,12 +346,36 @@ export async function GET(
     );
   }
 
+  // If auth error occurred
+  if (sawAuthError) {
+    return NextResponse.json(
+      {
+        error: "UPSTREAM_AUTH_ERROR",
+        message: lastErrorMessage || "Upstream VAHAN API authentication failed. Verify RAPIDAPI_KEY.",
+        plate: cleanPlate,
+      },
+      { status: 502 }
+    );
+  }
+
+  // If timeout occurred
+  if (sawTimeout) {
+    return NextResponse.json(
+      {
+        error: "VAHAN_SERVICE_TIMEOUT",
+        message: "Upstream VAHAN registry service timed out.",
+        plate: cleanPlate,
+      },
+      { status: 504 }
+    );
+  }
+
   return NextResponse.json(
     {
-      error: "VEHICLE_NOT_FOUND",
-      message: `Vehicle registration "${cleanPlate}" could not be verified in VAHAN registry.`,
+      error: "VAHAN_SERVICE_UNAVAILABLE",
+      message: lastErrorMessage || `Unable to reach upstream VAHAN registry for plate "${cleanPlate}".`,
       plate: cleanPlate,
     },
-    { status: 404 }
+    { status: 503 }
   );
 }

@@ -274,6 +274,8 @@ class DetectionEvent(BaseModel):
     plate_text_normalized: Optional[str] = None
     plate_confidence: Optional[float] = None
     image_path: Optional[str] = None
+    reid_confidence: Optional[float] = None
+    reid_embedding: Optional[List[float]] = None
 
 
 class ProcessVideoRequest(BaseModel):

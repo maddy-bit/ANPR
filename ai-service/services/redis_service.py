@@ -1,3 +1,4 @@
+import asyncio
 import os
 import json
 import logging
@@ -34,10 +35,11 @@ class RedisService:
                 host=REDIS_HOST,
                 port=REDIS_PORT,
                 password=REDIS_PASSWORD if REDIS_PASSWORD else None,
-                socket_timeout=2.0,
+                socket_timeout=1.0,
+                socket_connect_timeout=1.0,
                 decode_responses=True,
             )
-            await self.client.ping()
+            await asyncio.wait_for(self.client.ping(), timeout=1.0)
             self._connected = True
             logger.info(f"Connected to Redis cluster at {REDIS_HOST}:{REDIS_PORT}")
         except Exception as e:

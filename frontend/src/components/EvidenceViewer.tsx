@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { TrajectoryPointDto } from "@/lib/api";
+import { evidenceImageUrl, type TrajectoryPointDto } from "@/lib/api";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { formatTimestamp } from "@/lib/format";
 import { TiltCard3D } from "./TiltCard3D";
@@ -35,23 +35,8 @@ export function EvidenceViewer({
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [failedVideos, setFailedVideos] = useState<Record<string, boolean>>({});
 
-  // Active point fallback: if no checkpoint selected, show CAM-01 corridor node
-  const activePoint: TrajectoryPointDto = point ?? {
-    cameraId: "CAM-01",
-    cameraName: "Shivajinagar Chowk",
-    latitude: 18.5308,
-    longitude: 73.8474,
-    direction: "SE",
-    timestamp: "2026-08-30T18:14:23Z",
-    plateConfidence: 0.968,
-    detectionConfidence: 0.942,
-    imagePath: "CAM-01/frame_001.jpg",
-    detectionCount: 3,
-    incomingTransitionConfidence: null,
-    transitionNote: null,
-  };
-
-  const currentCam = activePoint.cameraId;
+  const activePoint = point;
+  const currentCam = activePoint?.cameraId || "CAM-01";
 
   // Check if a video was ingested for this camera (e.g. from 4-camera video ingestion)
   const videoUrl = customVideoUrls[currentCam] || null;
@@ -166,7 +151,7 @@ export function EvidenceViewer({
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {});
     }
-  }, [activePoint.cameraId, activePoint.timestamp, videoUrl, hasIngestedVideo]);
+  }, [activePoint?.cameraId, activePoint?.timestamp, videoUrl, hasIngestedVideo]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -202,7 +187,7 @@ export function EvidenceViewer({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-mono font-bold bg-slate-900 text-white px-2 py-0.5 rounded-xs whitespace-nowrap shrink-0">
-              {activePoint.cameraId}
+              {activePoint?.cameraId}
             </span>
             <span
               className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-xs border ${
@@ -225,7 +210,7 @@ export function EvidenceViewer({
         <div className="p-4">
           <AnimatePresence mode="wait">
             <motion.div
-              key={`${activePoint.cameraId}-${activePoint.timestamp}-${videoUrl}`}
+              key={`${activePoint?.cameraId}-${activePoint?.timestamp}-${videoUrl}`}
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
@@ -234,47 +219,21 @@ export function EvidenceViewer({
               {/* Optical Viewfinder Frame */}
               <div className="relative overflow-hidden rounded-md border-2 border-slate-700 bg-black select-none shadow-md">
                 {/* VIEWPORT AREA */}
-                {!hasIngestedVideo ? (
-                  /* Clean, simple black screen when no video is ingested (no text and no hardcoded green box) */
-                  <div className="relative flex min-h-[220px] sm:min-h-[260px] w-full items-center justify-center bg-black overflow-hidden select-none">
-                    {/* Checkpoint navigation controls available on bottom bar even in standby */}
-                    {totalPoints > 1 && (
-                      <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-xs bg-black/80 px-2 py-1 border border-white/20">
-                        {onPrevCheckpoint && (
-                          <button
-                            type="button"
-                            disabled={selectedIndex === 0 || selectedIndex === null}
-                            onClick={onPrevCheckpoint}
-                            className="px-2 py-0.5 rounded-xs bg-slate-800 text-white text-[10px] font-mono font-bold hover:bg-slate-700 disabled:opacity-30 cursor-pointer"
-                          >
-                            ◀ Prev
-                          </button>
-                        )}
-                        {selectedIndex !== null && totalPoints > 0 && (
-                          <span className="text-[10px] font-mono text-slate-300 font-bold px-1">
-                            {selectedIndex + 1}/{totalPoints}
-                          </span>
-                        )}
-                        {onNextCheckpoint && (
-                          <button
-                            type="button"
-                            disabled={selectedIndex === null || selectedIndex >= totalPoints - 1}
-                            onClick={onNextCheckpoint}
-                            className="px-2 py-0.5 rounded-xs bg-slate-800 text-white text-[10px] font-mono font-bold hover:bg-slate-700 disabled:opacity-30 cursor-pointer"
-                          >
-                            Next ▶
-                          </button>
-                        )}
-                      </div>
-                    )}
+                {!activePoint ? (
+                  <div className="relative flex min-h-[220px] sm:min-h-[260px] w-full flex-col items-center justify-center bg-black p-6 text-center font-mono">
+                    <span className="text-3xl mb-2">📹</span>
+                    <span className="text-xs text-slate-300 font-bold uppercase tracking-wider">CCTV Evidence Standby</span>
+                    <span className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                      Select a checkpoint from the detection timeline to inspect evidence frames and corridor video.
+                    </span>
                   </div>
-                ) : (
+                ) : hasIngestedVideo ? (
                   /* Active Ingested Video Feed */
                   <div className="relative flex min-h-[220px] sm:min-h-[260px] w-full items-center justify-center bg-black overflow-hidden">
                     {/* Top-Left Minimal Recording Status */}
                     <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5 rounded-xs bg-black/85 px-2.5 py-1 text-[11px] font-mono text-emerald-400 font-bold border border-emerald-500/40 backdrop-blur-xs">
                       <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                      <span>REC • {activePoint.cameraId}</span>
+                      <span>REC • {activePoint?.cameraId}</span>
                     </div>
 
                     {/* Primary HTML5 CCTV Video Stream */}
@@ -292,13 +251,9 @@ export function EvidenceViewer({
                       className="w-full h-auto max-h-[280px] object-cover"
                     />
 
-                    {/* ========================================================================= */}
-                    {/* REAL-TIME ML DYNAMIC YOLO GREEN BOUNDING BOX                             */}
-                    {/* Strictly rendered only when ML model in backend detects number plate      */}
-                    {/* ========================================================================= */}
+                    {/* REAL-TIME ML DYNAMIC YOLO GREEN BOUNDING BOX */}
                     {isPlateDetected && (
                       <>
-                        {/* Green Rectangular Bounding Box for License Plate */}
                         <div
                           className="absolute pointer-events-none z-20 transition-all duration-150 ease-out"
                           style={{
@@ -309,20 +264,17 @@ export function EvidenceViewer({
                           }}
                         >
                           <div className="relative w-full h-full border-2 border-emerald-400 bg-emerald-500/15 shadow-[0_0_12px_rgba(16,185,129,0.7)]">
-                            {/* 4 Neon Green Corner Reticles */}
                             <div className="absolute -top-1 -left-1 h-2.5 w-2.5 border-t-2 border-l-2 border-emerald-300" />
                             <div className="absolute -top-1 -right-1 h-2.5 w-2.5 border-t-2 border-r-2 border-emerald-300" />
                             <div className="absolute -bottom-1 -left-1 h-2.5 w-2.5 border-b-2 border-l-2 border-emerald-300" />
                             <div className="absolute -bottom-1 -right-1 h-2.5 w-2.5 border-b-2 border-r-2 border-emerald-300" />
 
-                            {/* Centered Optical Crosshair */}
                             <div className="absolute inset-0 flex items-center justify-center">
                               <span className="text-[10px] text-emerald-300/80 font-mono font-bold leading-none select-none">
                                 +
                               </span>
                             </div>
 
-                            {/* Floating Plate Detection Label Tag */}
                             <div className="absolute -top-6 left-0 flex items-center gap-1.5 rounded-xs bg-emerald-500 px-2 py-0.5 text-[10px] font-mono font-black text-slate-950 shadow-md whitespace-nowrap">
                               <span className="h-1.5 w-1.5 rounded-full bg-slate-950 animate-ping" />
                               <span className="tracking-widest">{targetPlate}</span>
@@ -333,7 +285,6 @@ export function EvidenceViewer({
                           </div>
                         </div>
 
-                        {/* Vehicle Bounding Box (when localized by ML model) */}
                         {vehBox && (
                           <div
                             className="absolute pointer-events-none z-10 border border-dashed border-emerald-400/50 bg-emerald-400/5 transition-all duration-150 ease-out"
@@ -343,12 +294,7 @@ export function EvidenceViewer({
                               width: `${vehBox.width}%`,
                               height: `${vehBox.height}%`,
                             }}
-                          >
-                            <div className="absolute -top-4 left-0 rounded-xs bg-black/80 px-1.5 py-0.2 text-[9px] font-mono font-bold text-emerald-300 border border-emerald-500/30 uppercase">
-                              VEHICLE: {(vehicleColor ? `${vehicleColor} ` : "").toUpperCase()}
-                              {(vehicleType || "Sedan").toUpperCase()}
-                            </div>
-                          </div>
+                          />
                         )}
                       </>
                     )}
@@ -420,6 +366,89 @@ export function EvidenceViewer({
                       </div>
                     </div>
                   </div>
+                ) : activePoint?.imagePath ? (
+                  /* Stored Evidence Snapshot Image from AI Pipeline */
+                  <div className="relative flex min-h-[220px] sm:min-h-[260px] w-full items-center justify-center bg-black overflow-hidden select-none">
+                    <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5 rounded-xs bg-black/85 px-2.5 py-1 text-[11px] font-mono text-cyan-400 font-bold border border-cyan-500/40 backdrop-blur-xs">
+                      <span>EVIDENCE SNAPSHOT • {activePoint.cameraId}</span>
+                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={evidenceImageUrl(activePoint.imagePath) ?? undefined}
+                      alt={`Detection evidence for ${targetPlate} at ${activePoint.cameraId}`}
+                      className="w-full h-auto max-h-[280px] object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                    {totalPoints > 1 && (
+                      <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-xs bg-black/80 px-2 py-1 border border-white/20">
+                        {onPrevCheckpoint && (
+                          <button
+                            type="button"
+                            disabled={selectedIndex === 0 || selectedIndex === null}
+                            onClick={onPrevCheckpoint}
+                            className="px-2 py-0.5 rounded-xs bg-slate-800 text-white text-[10px] font-mono font-bold hover:bg-slate-700 disabled:opacity-30 cursor-pointer"
+                          >
+                            ◀ Prev
+                          </button>
+                        )}
+                        {selectedIndex !== null && totalPoints > 0 && (
+                          <span className="text-[10px] font-mono text-slate-300 font-bold px-1">
+                            {selectedIndex + 1}/{totalPoints}
+                          </span>
+                        )}
+                        {onNextCheckpoint && (
+                          <button
+                            type="button"
+                            disabled={selectedIndex === null || selectedIndex >= totalPoints - 1}
+                            onClick={onNextCheckpoint}
+                            className="px-2 py-0.5 rounded-xs bg-slate-800 text-white text-[10px] font-mono font-bold hover:bg-slate-700 disabled:opacity-30 cursor-pointer"
+                          >
+                            Next ▶
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Clean Standby when checkpoint selected but no video or image available */
+                  <div className="relative flex min-h-[220px] sm:min-h-[260px] w-full items-center justify-center bg-black overflow-hidden select-none">
+                    <div className="text-center font-mono text-xs text-slate-400">
+                      <div className="text-2xl mb-1">📷</div>
+                      <div className="text-slate-200 font-bold">{activePoint?.cameraId} — {activePoint?.cameraName}</div>
+                      <div className="text-[10px] text-slate-500 mt-1">Checkpoint logged at {formatTimestamp(activePoint?.timestamp)}</div>
+                    </div>
+                    {totalPoints > 1 && (
+                      <div className="absolute bottom-2 right-2 z-30 flex items-center gap-1.5 rounded-xs bg-black/80 px-2 py-1 border border-white/20">
+                        {onPrevCheckpoint && (
+                          <button
+                            type="button"
+                            disabled={selectedIndex === 0 || selectedIndex === null}
+                            onClick={onPrevCheckpoint}
+                            className="px-2 py-0.5 rounded-xs bg-slate-800 text-white text-[10px] font-mono font-bold hover:bg-slate-700 disabled:opacity-30 cursor-pointer"
+                          >
+                            ◀ Prev
+                          </button>
+                        )}
+                        {selectedIndex !== null && totalPoints > 0 && (
+                          <span className="text-[10px] font-mono text-slate-300 font-bold px-1">
+                            {selectedIndex + 1}/{totalPoints}
+                          </span>
+                        )}
+                        {onNextCheckpoint && (
+                          <button
+                            type="button"
+                            disabled={selectedIndex === null || selectedIndex >= totalPoints - 1}
+                            onClick={onNextCheckpoint}
+                            className="px-2 py-0.5 rounded-xs bg-slate-800 text-white text-[10px] font-mono font-bold hover:bg-slate-700 disabled:opacity-30 cursor-pointer"
+                          >
+                            Next ▶
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -431,11 +460,11 @@ export function EvidenceViewer({
                   </dt>
                   <dd
                     className="text-right font-mono font-bold text-slate-950 truncate"
-                    title={`${activePoint.cameraId} (${activePoint.cameraName})`}
+                    title={`${activePoint?.cameraId} (${activePoint?.cameraName})`}
                   >
-                    {activePoint.cameraId}{" "}
+                    {activePoint?.cameraId}{" "}
                     <span className="font-sans font-medium text-slate-600">
-                      ({activePoint.cameraName})
+                      ({activePoint?.cameraName})
                     </span>
                   </dd>
 
@@ -443,7 +472,7 @@ export function EvidenceViewer({
                     Timestamp
                   </dt>
                   <dd className="text-right font-mono font-bold text-slate-950">
-                    {formatTimestamp(activePoint.timestamp)}
+                    {formatTimestamp(activePoint?.timestamp)}
                   </dd>
 
                   <dt className="text-xs font-mono font-bold uppercase tracking-wider text-slate-800">
@@ -459,22 +488,22 @@ export function EvidenceViewer({
                   <dd className="text-right">
                     <ConfidenceBadge
                       value={
-                        (activePoint.detectionConfidence ?? 0.942) > 1
-                          ? (activePoint.detectionConfidence ?? 94.2) / 100
-                          : activePoint.detectionConfidence ?? 0.942
+                        (activePoint?.detectionConfidence ?? 0.942) > 1
+                          ? (activePoint?.detectionConfidence ?? 94.2) / 100
+                          : activePoint?.detectionConfidence ?? 0.942
                       }
                       label="Detection"
                     />
                   </dd>
 
-                  {activePoint.incomingTransitionConfidence != null && (
+                  {activePoint?.incomingTransitionConfidence != null && (
                     <>
                       <dt className="text-xs font-mono font-bold uppercase tracking-wider text-slate-800">
                         Transition Score
                       </dt>
                       <dd className="text-right">
                         <ConfidenceBadge
-                          value={activePoint.incomingTransitionConfidence}
+                          value={activePoint?.incomingTransitionConfidence}
                           label="Score"
                         />
                       </dd>

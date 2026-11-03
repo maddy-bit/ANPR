@@ -158,138 +158,6 @@ export const SEED_CAMERAS: CameraDto[] = [
   { id: "CAM-12", name: "University Circle", latitude: 18.5529, longitude: 73.8291, direction: "SE", status: "OFFLINE", videoSource: "videos/cam12.mp4" }
 ];
 
-// Fallback demo scenario for ET3633P
-const DEMO_TRAJECTORY: TrajectoryResponseDto = {
-  vehicle: { plate: "ET3633P", vehicleType: "Sedan", make: "Toyota", model: "Prius", color: "Silver" },
-  points: [
-    {
-      cameraId: "CAM-01",
-      cameraName: "Shivajinagar Chowk",
-      latitude: 18.5308,
-      longitude: 73.8474,
-      direction: "SE",
-      timestamp: "2026-08-30T18:14:23Z",
-      plateConfidence: 0.96,
-      detectionConfidence: 0.92,
-      imagePath: "CAM-01/frame_001.jpg",
-      detectionCount: 3,
-      incomingTransitionConfidence: null,
-      transitionNote: null,
-    },
-    {
-      cameraId: "CAM-03",
-      cameraName: "JM Road - Deccan Gymkhana",
-      latitude: 18.5158,
-      longitude: 73.8412,
-      direction: "SW",
-      timestamp: "2026-08-30T18:21:52Z",
-      plateConfidence: 0.94,
-      detectionConfidence: 0.89,
-      imagePath: "CAM-03/frame_001.jpg",
-      detectionCount: 4,
-      incomingTransitionConfidence: 0.91,
-      transitionNote: null,
-    },
-    {
-      cameraId: "CAM-07",
-      cameraName: "Kothrud Depot",
-      latitude: 18.5074,
-      longitude: 73.8077,
-      direction: "NW",
-      timestamp: "2026-08-30T18:35:18Z",
-      plateConfidence: 0.95,
-      detectionConfidence: 0.93,
-      imagePath: "CAM-07/frame_001.jpg",
-      detectionCount: 3,
-      incomingTransitionConfidence: 0.88,
-      transitionNote: null,
-    },
-    {
-      cameraId: "CAM-11",
-      cameraName: "Aundh - ITI Road",
-      latitude: 18.5590,
-      longitude: 73.8080,
-      direction: "NE",
-      timestamp: "2026-08-30T18:48:02Z",
-      plateConfidence: 0.97,
-      detectionConfidence: 0.95,
-      imagePath: "CAM-11/frame_001.jpg",
-      detectionCount: 5,
-      incomingTransitionConfidence: 0.89,
-      transitionNote: null,
-    },
-  ],
-  overallConfidence: 0.893,
-  estimatedDistanceKm: 11.2,
-  estimatedDurationMinutes: 34,
-  warning: null,
-};
-
-const DEMO_SUMMARY: VehicleSummaryDto = {
-  vehicle: { plate: "ET3633P", vehicleType: "Sedan", make: "Toyota", model: "Prius", color: "Silver" },
-  firstSeen: "2026-08-30T18:14:23Z",
-  lastSeen: "2026-08-30T18:48:02Z",
-  cameraCount: 4,
-  camerasVisited: ["CAM-01", "CAM-03", "CAM-07", "CAM-11"],
-  detectionCount: 15,
-};
-
-const DEMO_ANALYTICS: AnalyticsOverviewDto = {
-  totalCameras: 12,
-  camerasOnline: 10,
-  camerasProcessing: 1,
-  camerasOffline: 1,
-  totalVehicles: 1482,
-  totalDetections: 8940,
-  vehicleTypeDistribution: [
-    { vehicleType: "Sedan", count: 4820 },
-    { vehicleType: "SUV", count: 3240 },
-    { vehicleType: "Hatchback", count: 1720 },
-    { vehicleType: "Motorcycle", count: 680 },
-    { vehicleType: "Truck", count: 410 },
-  ],
-  detectionsByHour: [
-    { hour: 8, count: 450 },
-    { hour: 9, count: 820 },
-    { hour: 10, count: 980 },
-    { hour: 11, count: 650 },
-    { hour: 12, count: 540 },
-    { hour: 13, count: 480 },
-    { hour: 14, count: 520 },
-    { hour: 15, count: 610 },
-    { hour: 16, count: 790 },
-    { hour: 17, count: 1120 },
-    { hour: 18, count: 1450 },
-    { hour: 19, count: 1320 },
-    { hour: 20, count: 890 },
-    { hour: 21, count: 560 },
-  ],
-  busiestCameras: [
-    { cameraId: "CAM-01", cameraName: "Shivajinagar Chowk", count: 1840 },
-    { cameraId: "CAM-05", cameraName: "Swargate Junction", count: 1620 },
-    { cameraId: "CAM-03", cameraName: "JM Road - Deccan", count: 1390 },
-    { cameraId: "CAM-08", cameraName: "Baner Road", count: 1150 },
-    { cameraId: "CAM-11", cameraName: "Aundh - ITI Road", count: 980 },
-  ],
-  averageTransitionSpeedKmh: 41.5,
-  commonOrigins: [
-    { cameraId: "CAM-01", cameraName: "Shivajinagar Chowk", count: 420 },
-    { cameraId: "CAM-08", cameraName: "Baner Road", count: 380 },
-    { cameraId: "CAM-05", cameraName: "Swargate Junction", count: 310 },
-  ],
-  commonDestinations: [
-    { cameraId: "CAM-09", cameraName: "Hinjewadi Phase 1", count: 540 },
-    { cameraId: "CAM-06", cameraName: "Hadapsar Industrial", count: 410 },
-    { cameraId: "CAM-11", cameraName: "Aundh - ITI Road", count: 390 },
-  ],
-  topRoutes: [
-    { fromCameraId: "CAM-01", fromCameraName: "Shivajinagar", toCameraId: "CAM-03", toCameraName: "JM Road", count: 380 },
-    { fromCameraId: "CAM-03", fromCameraName: "JM Road", toCameraId: "CAM-07", toCameraName: "Kothrud Depot", count: 310 },
-    { fromCameraId: "CAM-08", fromCameraName: "Baner Road", toCameraId: "CAM-11", toCameraName: "Aundh", count: 290 },
-    { fromCameraId: "CAM-11", fromCameraName: "Aundh", toCameraId: "CAM-09", toCameraName: "Hinjewadi", count: 260 },
-  ],
-};
-
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}/api${path}`;
 
@@ -335,35 +203,7 @@ export async function getCameras(): Promise<CameraDto[]> {
 }
 
 export async function getVehicleSummary(plate: string): Promise<VehicleSummaryDto> {
-  try {
-    return await apiFetch<VehicleSummaryDto>(`/vehicles/${encodeURIComponent(plate)}`);
-  } catch {
-    const clean = plate.toUpperCase().replace(/\s+/g, "");
-    if (clean === "ET3633P" || clean === "MH12AB1234") {
-      return DEMO_SUMMARY;
-    }
-    if (plate.toUpperCase().includes("DL04CA2020")) {
-      return {
-        vehicle: { plate: "DL04CA2020", vehicleType: "Sedan", make: "Demo Motors", model: "S2", color: "Black" },
-        firstSeen: "2026-08-30T17:50:00Z",
-        lastSeen: "2026-08-30T17:50:00Z",
-        cameraCount: 1,
-        camerasVisited: ["CAM-02"],
-        detectionCount: 5,
-      };
-    }
-    if (plate.toUpperCase().includes("KA05MH8899")) {
-      return {
-        vehicle: { plate: "KA05MH8899", vehicleType: "Hatchback", make: "Demo Motors", model: "H1", color: "Silver" },
-        firstSeen: "2026-08-30T18:40:00Z",
-        lastSeen: "2026-08-30T18:40:00Z",
-        cameraCount: 1,
-        camerasVisited: ["CAM-05"],
-        detectionCount: 4,
-      };
-    }
-    throw new ApiError("No vehicle record found", 404);
-  }
+  return apiFetch<VehicleSummaryDto>(`/vehicles/${encodeURIComponent(plate)}`);
 }
 
 export async function getVehicleDetections(plate: string): Promise<VehicleDetectionDto[]> {
@@ -371,27 +211,11 @@ export async function getVehicleDetections(plate: string): Promise<VehicleDetect
 }
 
 export async function getVehicleTrajectory(plate: string): Promise<TrajectoryResponseDto> {
-  try {
-    return await apiFetch<TrajectoryResponseDto>(`/vehicles/${encodeURIComponent(plate)}/trajectory`);
-  } catch {
-    const clean = plate.toUpperCase().replace(/\s+/g, "");
-    if (clean === "ET3633P" || clean === "MH12AB1234") {
-      return DEMO_TRAJECTORY;
-    }
-    throw new ApiError("Trajectory unavailable", 404);
-  }
+  return apiFetch<TrajectoryResponseDto>(`/vehicles/${encodeURIComponent(plate)}/trajectory`);
 }
 
 export async function getAnalyticsOverview(): Promise<AnalyticsOverviewDto> {
-  try {
-    const res = await apiFetch<AnalyticsOverviewDto>("/analytics/overview");
-    if (!res || res.totalCameras === 0 || res.totalDetections === 0) {
-      return DEMO_ANALYTICS;
-    }
-    return res;
-  } catch {
-    return DEMO_ANALYTICS;
-  }
+  return apiFetch<AnalyticsOverviewDto>("/analytics/overview");
 }
 
 export function evidenceImageUrl(imagePath: string | null | undefined): string | null {
@@ -656,6 +480,97 @@ export async function addWatchlistEntry(entry: {
   }
 }
 
+export interface IngestionJobStatusDto {
+  job_id: string;
+  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  progress: number;
+  updated_at?: number;
+  details?: {
+    camera_id?: string;
+    video_path?: string;
+    frames_processed?: number;
+    total_frames?: number;
+    detections_count?: number;
+    tracks_count?: number;
+    recognized_plates?: string[];
+    synced_to_backend?: number;
+    dcp_enabled?: boolean;
+    dcp_applied?: boolean;
+    models_executed?: string[];
+    models_skipped?: string[];
+    duration_seconds?: number;
+    fps?: number;
+    error?: string;
+  };
+}
+
+export async function uploadVideoFile(
+  file: File,
+  cameraId: string,
+  enableDehaze: boolean = false,
+  startTime: string = "2026-09-05T12:00:00"
+): Promise<{ jobId: string; status: string; message: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("camera_id", cameraId);
+  formData.append("enable_dehaze", String(enableDehaze));
+  formData.append("start_time", startTime);
+
+  const res = await fetch(`${AI_SERVICE_BASE_URL}/upload-video`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new ApiError(errData.detail || `Upload failed with HTTP ${res.status}`, res.status);
+  }
+
+  const data = await res.json();
+  return {
+    jobId: data.job_id,
+    status: data.status,
+    message: data.message,
+  };
+}
+
+export async function ingestCameraFootage(
+  cameraId: string,
+  enableDehaze: boolean = false
+): Promise<{ jobId: string; status: string; message: string }> {
+  const res = await fetch(
+    `${AI_SERVICE_BASE_URL}/ingest-camera/${encodeURIComponent(cameraId)}?enable_dehaze=${enableDehaze}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new ApiError(errData.detail || `Camera ingestion failed with HTTP ${res.status}`, res.status);
+  }
+
+  const data = await res.json();
+  return {
+    jobId: data.job_id,
+    status: data.status,
+    message: data.message,
+  };
+}
+
+export async function getIngestionJobStatus(jobId: string): Promise<IngestionJobStatusDto> {
+  const res = await fetch(`${AI_SERVICE_BASE_URL}/jobs/${encodeURIComponent(jobId)}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new ApiError(`Job '${jobId}' not found or error`, res.status);
+  }
+
+  return (await res.json()) as IngestionJobStatusDto;
+}
+
 export async function processVideoFeed(
   videoPath: string,
   cameraId: string,
@@ -677,28 +592,24 @@ export async function processVideoFeed(
     return {
       cameraId,
       videoPath,
-      framesProcessed: res.framesProcessed ?? res.frames_processed ?? 120,
-      detectionsCount: res.detectionsCount ?? (Array.isArray(res.detections) ? res.detections.length : 15),
+      framesProcessed: res.framesProcessed ?? res.frames_processed ?? 0,
+      detectionsCount: res.detectionsCount ?? (Array.isArray(res.detections) ? res.detections.length : 0),
     };
   } catch {
-    try {
-      const res = await fetch(`${AI_SERVICE_BASE_URL}/process-video`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as RawProcessVideoResponse;
-        return {
-          cameraId,
-          videoPath,
-          framesProcessed: data.frames_processed ?? data.framesProcessed ?? 120,
-          detectionsCount: Array.isArray(data.detections) ? data.detections.length : 15,
-        };
-      }
-    } catch {
-      // fallback
+    const res = await fetch(`${AI_SERVICE_BASE_URL}/process-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as RawProcessVideoResponse;
+      return {
+        cameraId,
+        videoPath,
+        framesProcessed: data.frames_processed ?? data.framesProcessed ?? 0,
+        detectionsCount: Array.isArray(data.detections) ? data.detections.length : 0,
+      };
     }
-    return { cameraId, videoPath, framesProcessed: 120, detectionsCount: 15 };
+    throw new ApiError(`Video processing microservice failed with HTTP ${res.status}`, res.status);
   }
 }

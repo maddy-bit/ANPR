@@ -28,3 +28,6 @@ runs/
 *.onnx
 *.bin
 *.zip
+
+data/uploads/
+.demo_pids.json

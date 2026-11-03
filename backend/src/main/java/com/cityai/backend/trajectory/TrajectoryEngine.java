@@ -6,7 +6,6 @@ import com.cityai.backend.dto.VehicleDto;
 import com.cityai.backend.model.Camera;
 import com.cityai.backend.model.Vehicle;
 import com.cityai.backend.model.VehicleDetection;
-import com.cityai.backend.repository.CameraRepository;
 import com.cityai.backend.repository.VehicleDetectionRepository;
 import com.cityai.backend.repository.VehicleRepository;
 import com.cityai.backend.service.VehicleRegistryService;
@@ -31,19 +30,16 @@ public class TrajectoryEngine {
 
     private final VehicleRepository vehicleRepository;
     private final VehicleDetectionRepository detectionRepository;
-    private final CameraRepository cameraRepository;
     private final VehicleRegistryService registryService;
     private final TrajectoryScoringService scoringService;
 
     public TrajectoryEngine(
             VehicleRepository vehicleRepository,
             VehicleDetectionRepository detectionRepository,
-            CameraRepository cameraRepository,
             VehicleRegistryService registryService,
             TrajectoryScoringService scoringService) {
         this.vehicleRepository = vehicleRepository;
         this.detectionRepository = detectionRepository;
-        this.cameraRepository = cameraRepository;
         this.registryService = registryService;
         this.scoringService = scoringService;
     }
@@ -126,10 +122,8 @@ public class TrajectoryEngine {
         List<CameraVisit> visits = groupIntoVisits(detections);
 
         if (visits.isEmpty()) {
-            // Build fallback demo trajectory using camera nodes
-            List<CameraVisit> fallbackVisits = buildFallbackVisits();
-            List<Transition> fallbackTransitions = buildFallbackTransitions(fallbackVisits);
-            return new TrajectoryResult(vehicle, fallbackVisits, fallbackTransitions, 0.94, 11.2, 34, null);
+            return new TrajectoryResult(vehicle, List.of(), List.of(), null, 0.0, 0,
+                    "NO_TRAJECTORY_FOUND: no camera detections recorded for this vehicle.");
         }
 
         if (visits.size() == 1) {
@@ -169,33 +163,6 @@ public class TrajectoryEngine {
     @Cacheable(value = "trajectories", key = "#normalizedPlate")
     public TrajectoryResponseDto reconstructAsDto(String normalizedPlate) {
         return reconstruct(normalizedPlate).toDto();
-    }
-
-    private List<CameraVisit> buildFallbackVisits() {
-        List<CameraVisit> visits = new ArrayList<>();
-        List<String> targetIds = List.of("CAM-01", "CAM-03", "CAM-07", "CAM-11");
-        Instant baseTime = Instant.parse("2026-08-30T18:14:23Z");
-
-        for (int i = 0; i < targetIds.size(); i++) {
-            String camId = targetIds.get(i);
-            if (camId == null) continue;
-            Camera cam = cameraRepository.findById(camId)
-                    .orElse(new Camera(camId, "Junction " + camId, 18.5308 + (i * 0.01), 73.8474 + (i * 0.01), "SE", "ONLINE", "videos/cam01.mp4"));
-            Instant seen = baseTime.plusSeconds(i * 600L);
-            visits.add(new CameraVisit(cam, seen, seen.plusSeconds(120), 0.95 - (i * 0.02), 0.92, camId + "/frame_001.jpg", 3 + i));
-        }
-        return visits;
-    }
-
-    private List<Transition> buildFallbackTransitions(List<CameraVisit> visits) {
-        List<Transition> transitions = new ArrayList<>();
-        for (int i = 0; i < visits.size() - 1; i++) {
-            CameraVisit from = visits.get(i);
-            CameraVisit to = visits.get(i + 1);
-            var score = new TrajectoryScoringService.TransitionScore(3.2, 10.0, 19.2, 0.95, 0.90, 0.85, 0.80, 0.60, 0.92, false, null);
-            transitions.add(new Transition(from.camera().getId(), to.camera().getId(), score));
-        }
-        return transitions;
     }
 
     /** Collapses consecutive same-camera detections (many rows per pass) into one visit. */

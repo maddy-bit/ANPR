@@ -8,46 +8,27 @@ interface TrajectoryPredictionCardProps {
   plate: string;
 }
 
-const FALLBACK_CANDIDATES: TrajectoryCandidateDto[] = [
-  {
-    nextCameraId: "CAM-05",
-    nextCameraName: "Swargate Junction",
-    probability: 0.78,
-    estimatedTravelSeconds: 340,
-    estimatedArrivalIso: "18:20",
-  },
-  {
-    nextCameraId: "CAM-08",
-    nextCameraName: "Baner Road",
-    probability: 0.16,
-    estimatedTravelSeconds: 620,
-    estimatedArrivalIso: "18:25",
-  },
-  {
-    nextCameraId: "CAM-11",
-    nextCameraName: "Aundh ITI Circle",
-    probability: 0.06,
-    estimatedTravelSeconds: 890,
-    estimatedArrivalIso: "18:30",
-  },
-];
-
 export function TrajectoryPredictionCard({ plate }: TrajectoryPredictionCardProps) {
   const [candidates, setCandidates] = useState<TrajectoryCandidateDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    setIsLoading(true);
+    setErrorMessage(null);
+
     predictTrajectory(plate)
       .then((data) => {
         if (active) {
-          setCandidates(data && data.length > 0 ? data : FALLBACK_CANDIDATES);
+          setCandidates(Array.isArray(data) ? data : []);
           setIsLoading(false);
         }
       })
       .catch(() => {
         if (active) {
-          setCandidates(FALLBACK_CANDIDATES);
+          setCandidates([]);
+          setErrorMessage("AI Prediction Service Offline");
           setIsLoading(false);
         }
       });
@@ -56,8 +37,6 @@ export function TrajectoryPredictionCard({ plate }: TrajectoryPredictionCardProp
       active = false;
     };
   }, [plate]);
-
-  const displayCandidates = candidates.length > 0 ? candidates : FALLBACK_CANDIDATES;
 
   return (
     <div className="neo-box overflow-hidden">
@@ -73,8 +52,16 @@ export function TrajectoryPredictionCard({ plate }: TrajectoryPredictionCardProp
           <div className="flex h-16 items-center justify-center text-sm font-mono text-slate-800 font-bold">
             Computing Spatial Probabilities...
           </div>
+        ) : errorMessage ? (
+          <div className="flex h-16 items-center justify-center text-xs font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3 text-center">
+            {errorMessage}
+          </div>
+        ) : candidates.length === 0 ? (
+          <div className="flex h-16 items-center justify-center text-xs font-mono font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-md p-3 text-center">
+            No next-junction trajectory predictions available for this vehicle.
+          </div>
         ) : (
-          displayCandidates.map((cand, idx) => (
+          candidates.map((cand, idx) => (
             <motion.div
               key={cand.nextCameraId || idx}
               initial={{ opacity: 0, x: -6 }}

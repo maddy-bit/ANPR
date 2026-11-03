@@ -67,6 +67,9 @@ public class VehicleDetection {
     /** Placeholder for appearance-based Re-ID confidence (Phase 8+). */
     private Double reidConfidence;
 
+    @Column(columnDefinition = "TEXT")
+    private String reidEmbedding;
+
     /** Path to the saved evidence frame for this detection. */
     private String imagePath;
 
@@ -175,6 +178,14 @@ public class VehicleDetection {
 
     public void setPlateTextNormalized(String plateTextNormalized) {
         this.plateTextNormalized = plateTextNormalized;
+    }
+
+    public String getReidEmbedding() {
+        return reidEmbedding;
+    }
+
+    public void setReidEmbedding(String reidEmbedding) {
+        this.reidEmbedding = reidEmbedding;
     }
 
     public Double getReidConfidence() {

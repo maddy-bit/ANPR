@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
         source: "/evidence/:path*",
         destination: `${backendUrl}/evidence/:path*`,
       },
+      {
+        source: "/videos/:path*",
+        destination: `${backendUrl}/videos/:path*`,
+      },
     ];
   },
 };

@@ -122,8 +122,18 @@ class GlobalVehicleRegistry:
             crop_path=latest.crop_path if latest else None,
         )
 
-    def get_record(self, global_id: str) -> GlobalVehicleRecord | None:
-        return self.records.get(global_id)
+    def get_record(self, identifier: str) -> GlobalVehicleRecord | None:
+        if not identifier:
+            return None
+        # 1. Direct lookup by global_id
+        if identifier in self.records:
+            return self.records[identifier]
+        # 2. Secondary lookup by normalized plate number
+        clean = identifier.replace("-", "").replace(" ", "").upper()
+        gid = self.plate_to_global_id.get(clean)
+        if gid and gid in self.records:
+            return self.records[gid]
+        return None
 
     def get_all_records(self) -> list[GlobalVehicleRecord]:
         return list(self.records.values())

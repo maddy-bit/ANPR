@@ -16,12 +16,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class TrajectoryScoringService {
 
-    // Weights sum to 1.0 - tune here, nowhere else.
+    // Active weights normalized across available physical dimensions
     private static final double WEIGHT_PLATE = 0.30;
     private static final double WEIGHT_KINEMATIC = 0.25; // time + distance plausibility ("time_score")
     private static final double WEIGHT_GEOGRAPHIC = 0.15; // hop-distance plausibility ("geographic_score"/road_score stand-in)
     private static final double WEIGHT_DIRECTION = 0.15;
-    private static final double WEIGHT_APPEARANCE = 0.15; // Re-ID - neutral until embeddings are persisted (Phase 8+ follow-up)
+    private static final double WEIGHT_APPEARANCE = 0.15;
 
     private static final double PLAUSIBLE_MIN_SPEED_KMH = 3.0;   // slower than this over a long gap looks like loitering, not transit
     private static final double PLAUSIBLE_MAX_SPEED_KMH = 60.0;  // comfortable urban upper bound
@@ -38,7 +38,7 @@ public class TrajectoryScoringService {
             double kinematicScore,
             double geographicScore,
             double directionScore,
-            double appearanceScore,
+            Double appearanceScore,
             double confidence,
             boolean physicallyImplausible,
             String note
@@ -48,6 +48,13 @@ public class TrajectoryScoringService {
     public TransitionScore score(
             Camera fromCamera, java.time.Instant fromTime, Double fromPlateConfidence,
             Camera toCamera, java.time.Instant toTime, Double toPlateConfidence) {
+        return score(fromCamera, fromTime, fromPlateConfidence, toCamera, toTime, toPlateConfidence, null);
+    }
+
+    public TransitionScore score(
+            Camera fromCamera, java.time.Instant fromTime, Double fromPlateConfidence,
+            Camera toCamera, java.time.Instant toTime, Double toPlateConfidence,
+            Double appearanceSimilarity) {
 
         CameraGraph.Edge edge = cameraGraph.edgeBetween(fromCamera, toCamera);
         double elapsedMinutes = Math.max(0.001, java.time.Duration.between(fromTime, toTime).toSeconds() / 60.0);
@@ -57,15 +64,27 @@ public class TrajectoryScoringService {
         double kinematicScore = kinematicPlausibility(impliedSpeedKmh);
         double geographicScore = hopPlausibility(edge.distanceKm());
         double directionScore = directionAlignment(toCamera, edge.bearingDegrees());
-        double appearanceScore = 0.6; // neutral placeholder - see class docs
+        Double appearanceScore = appearanceSimilarity;
 
         boolean implausible = impliedSpeedKmh > IMPOSSIBLE_SPEED_KMH;
 
-        double confidence = WEIGHT_PLATE * plateScore
-                + WEIGHT_KINEMATIC * kinematicScore
-                + WEIGHT_GEOGRAPHIC * geographicScore
-                + WEIGHT_DIRECTION * directionScore
-                + WEIGHT_APPEARANCE * appearanceScore;
+        double activeWeightSum = WEIGHT_PLATE + WEIGHT_KINEMATIC + WEIGHT_GEOGRAPHIC + WEIGHT_DIRECTION;
+        double rawConfidence;
+        if (appearanceSimilarity != null) {
+            activeWeightSum += WEIGHT_APPEARANCE;
+            rawConfidence = (WEIGHT_PLATE * plateScore
+                    + WEIGHT_KINEMATIC * kinematicScore
+                    + WEIGHT_GEOGRAPHIC * geographicScore
+                    + WEIGHT_DIRECTION * directionScore
+                    + WEIGHT_APPEARANCE * appearanceSimilarity) / activeWeightSum;
+        } else {
+            rawConfidence = (WEIGHT_PLATE * plateScore
+                    + WEIGHT_KINEMATIC * kinematicScore
+                    + WEIGHT_GEOGRAPHIC * geographicScore
+                    + WEIGHT_DIRECTION * directionScore) / activeWeightSum;
+        }
+
+        double confidence = clamp01(rawConfidence);
 
         String note = null;
         if (implausible) {

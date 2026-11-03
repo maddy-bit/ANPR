@@ -1,0 +1,204 @@
+flowchart TD
+    %% ─────────────────────────────────────────────────────────────────────────────
+    %% Complete Runtime Architecture & Implementation Map (SIH26127)
+    %% ─────────────────────────────────────────────────────────────────────────────
+
+    subgraph ClientLayer ["Client Layer (Web Browser)"]
+        UI_Dash["InvestigationDashboard.tsx"]
+        UI_Map["InvestigationMap.tsx (MapLibre GL)"]
+        UI_Evidence["EvidenceViewer.tsx (CCTV Feed)"]
+        UI_Player["InteractiveTrajectoryPlayer.tsx"]
+        UI_Predict["TrajectoryPredictionCard.tsx"]
+        UI_RC["VehicleRegistrySection.tsx"]
+        UI_ModalGrid["LiveCameraGridModal.tsx (Mock 12-Cam Wall)"]
+        UI_ModalIngest["VideoIngestionModal.tsx (Simulated Upload)"]
+        UI_Analytics["AnalyticsDashboard.tsx"]
+    end
+
+    subgraph NextServerLayer ["Next.js Application Server (Port 3000)"]
+        Next_Rewrites["next.config.ts (Rewrites Proxy)"]
+        Next_VahanRoute["app/api/vahan/[plate]/route.ts"]
+        Next_YoloRoute["app/api/yolo/detect/route.ts"]
+    end
+
+    subgraph ExternalServices ["External Cloud Services"]
+        Ext_RapidAPI["RapidAPI VAHAN Portal\n(rto-vehicle-information-india.p.rapidapi.com)"]
+        Ext_OSRM["OSRM Public Routing API\n(router.project-osrm.org)"]
+        Ext_GoogleTiles["Google Maps Raster Tile Server\n(mt0.google.com)"]
+    end
+
+    subgraph BackendLayer ["Spring Boot Backend (Port 8080)"]
+        subgraph SecurityModule ["Security & Rate Limiting"]
+            Sec_RateLimit["RedisRateLimiterFilter\n(IP Sliding Window 300 req/min)"]
+            Sec_Config["SecurityConfig (HTTP Basic Auth)\nRole INGEST: ingest / change-me-in-production"]
+        end
+
+        subgraph Controllers ["REST & WebSocket Controllers"]
+            Ctrl_Health["HealthController (/api/health)"]
+            Ctrl_Camera["CameraController (/api/cameras)"]
+            Ctrl_Vehicle["VehicleController (/api/vehicles)"]
+            Ctrl_Traj["TrajectoryController (/api/vehicles/{plate}/trajectory)"]
+            Ctrl_Detect["DetectionController (/api/detections/ingest)"]
+            Ctrl_Analytics["AnalyticsController (/api/analytics/overview)"]
+            Ctrl_Audit["AuditController (/api/audit/recent)"]
+            Ctrl_Proxy["AiProxyController (/api/watchlist, /security-alerts, ...)"]
+            WS_Live["LiveTrackingWebSocketHandler (/ws/live/{plate})"]
+        end
+
+        subgraph BackendServices ["Service & Engine Layer"]
+            Svc_TrajEngine["TrajectoryEngine\n(reconstruct & fallback builder)"]
+            Svc_Scoring["TrajectoryScoringService\n(appearanceScore = 0.6 CONSTANT)"]
+            Svc_Registry["MockVehicleRegistryService\n(hashCode Synthetic Generator)"]
+            Svc_Ingest["DetectionIngestionService"]
+            Svc_Audit["AuditLogService"]
+            Svc_Analytics["AnalyticsService"]
+            Svc_Spatial["SpatialCameraService (@Profile postgres)"]
+            Svc_RedisPubSub["RedisPubSubService"]
+        end
+
+        subgraph Repositories ["Spring Data JPA Repositories"]
+            Repo_Cam["CameraRepository"]
+            Repo_Veh["VehicleRepository"]
+            Repo_Det["VehicleDetectionRepository"]
+            Repo_Audit["AuditLogRepository"]
+        end
+    end
+
+    subgraph StorageLayer ["Persistence & Cache Layer"]
+        subgraph DB ["SQL Database"]
+            DB_H2["H2 In-Memory (Default Profile)\njdbc:h2:mem:cityaidb"]
+            DB_Postgres["PostgreSQL 16 + PostGIS 3.4 (Port 5432)\njdbc:postgresql://db:5432/cityai"]
+            DB_Tables["Tables: cameras, vehicles,\nvehicle_detections, audit_log_entries"]
+        end
+
+        subgraph RedisLayer ["Redis 7 (Port 6379)"]
+            Redis_Rate["ratelimit:ip:minute"]
+            Redis_Cache["Spring Cache: cameras, trajectories"]
+            Redis_PubSub["Topic: cityai:detections"]
+            Redis_Jobs["cityai:job:job_id (Python AI)"]
+        end
+    end
+
+    subgraph AiServiceLayer ["Python FastAPI Microservice (Port 8000)"]
+        FastAPI_App["main.py (FastAPI App)"]
+        AI_DetectPlate["POST /detect-plate\n(Echoes targetPlate + Bumper Heuristic)"]
+        AI_ProcessVid["POST /process-video"]
+        AI_ProcessMulti["POST /process-multi-camera"]
+        AI_Predict["GET /predict-trajectory/{global_id}\n(Requires global_id, not plate!)"]
+        AI_Watchlist["GET/POST /watchlist & /security-alerts"]
+
+        subgraph VisionPipeline ["Computer Vision Pipeline"]
+            CV_Tracker["VehicleTracker (ByteTrack + YOLOv8s)"]
+            CV_VehicleDet["VehicleDetector (YOLOv8s)"]
+            CV_PlateDet["PlateDetector (YOLOv8n LP / keremberke HF)"]
+            CV_OCR["OCRService (EasyOCR + Confusable Correction)"]
+            CV_ReID["ReIdService (ResNet50 2048-dim / HSV Fallback)"]
+            CV_Color["ColorClassifier (HSV K-means k=3)"]
+            CV_Dehaze["ImageDehazer (DCP Defogger - UNINVOKED DEAD CODE)"]
+        end
+
+        subgraph AiEngines ["Analytical & State Engines (IN-MEMORY ONLY)"]
+            Engine_GlobalReg["GlobalVehicleRegistry (self.records = dict)"]
+            Engine_Scorer["IdentityScorer (6-factor Multi-Signal Match)"]
+            Engine_Journey["JourneyReconstructor (Anomaly Detection)"]
+            Engine_Markov["TrajectoryPredictor (Spatial Markov Transition)"]
+            Engine_Watchlist["WatchlistManager (Hotlist Store)"]
+        end
+    end
+
+    subgraph ScriptsLayer ["CLI & Ingestion Scripts"]
+        Script_Process["scripts/process_video.py"]
+        Script_Demo["scripts/run_sih_demo.py"]
+    end
+
+    %% ─────────────────────────────────────────────────────────────────────────────
+    %% Relationships & Communication Pathways
+    %% ─────────────────────────────────────────────────────────────────────────────
+
+    %% Client to Next.js
+    UI_Dash -->|Local Component Hierarchy| UI_Map & UI_Evidence & UI_Player & UI_Predict & UI_RC & UI_ModalGrid & UI_ModalIngest
+    UI_Map -->|HTTP Tile Fetch| Ext_GoogleTiles
+    UI_Map -.->|HTTP OSRM Geometry| Ext_OSRM
+    UI_RC -->|GET /api/vahan/plate| Next_VahanRoute
+    UI_Evidence -.->|Frame Grab POST /api/yolo/detect| Next_YoloRoute
+
+    %% Next.js routes
+    Next_VahanRoute -->|Mock Bypass for ET3633P / MH12AB1234| Next_VahanRoute
+    Next_VahanRoute -->|Live HTTPS POST| Ext_RapidAPI
+    Next_YoloRoute -.->|HTTP POST localhost:8000/detect-plate| AI_DetectPlate
+    Next_Rewrites -->|HTTP Proxy /api/* except vahan| BackendLayer
+    Next_Rewrites -->|WS Proxy /ws/*| WS_Live
+
+    %% Frontend direct / rewrites to Backend
+    UI_Dash -->|GET /api/cameras| Ctrl_Camera
+    UI_Dash -->|GET /api/vehicles/plate| Ctrl_Vehicle
+    UI_Dash -->|GET /api/vehicles/plate/trajectory| Ctrl_Traj
+    UI_Player -.->|Connect ws://host/ws/live/plate| WS_Live
+    UI_Predict -.->|GET /api/predict-trajectory/plate (BROKEN)| Ctrl_Proxy
+    UI_Analytics -->|GET /api/analytics/overview| Ctrl_Analytics
+
+    %% Backend Controllers to Security & Services
+    Ctrl_Detect -->|Guarded by HTTP Basic| Sec_Config
+    Ctrl_Audit -->|Guarded by HTTP Basic| Sec_Config
+    Ctrl_Vehicle & Ctrl_Detect -->|IP Throttled| Sec_RateLimit
+    Sec_RateLimit -->|INCR & EXPIRE| Redis_Rate
+
+    Ctrl_Camera --> Repo_Cam
+    Ctrl_Camera -.->|Radius Search| Svc_Spatial
+    Svc_Spatial -->|ST_DWithin PostGIS SQL| DB_Postgres
+    Ctrl_Vehicle --> Svc_Audit
+    Ctrl_Vehicle --> Svc_Registry
+    Svc_Registry -->|Plate Not Found -> Generate via hashCode()| Svc_Registry
+    Ctrl_Vehicle --> Repo_Veh
+    Ctrl_Vehicle --> Repo_Det
+
+    Ctrl_Traj --> Svc_TrajEngine
+    Svc_TrajEngine -->|Visits Empty -> buildFallbackVisits()| Svc_TrajEngine
+    Svc_TrajEngine --> Svc_Scoring
+    Svc_Scoring -->|appearanceScore = 0.6 HARDCODED| Svc_Scoring
+    WS_Live -->|Reconstructs Route & Schedules 3s Timers| Svc_TrajEngine
+
+    Ctrl_Detect --> Svc_Ingest
+    Svc_Ingest --> Repo_Det & Repo_Veh
+    Svc_Ingest -->|Evict Cache| Redis_Cache
+    Svc_Ingest -->|Publish Detection| Svc_RedisPubSub
+    Svc_RedisPubSub -->|PUBLISH cityai:detections| Redis_PubSub
+
+    Ctrl_Analytics --> Svc_Analytics
+    Svc_Analytics --> Repo_Cam & Repo_Veh & Repo_Det & Svc_TrajEngine
+
+    Ctrl_Proxy -->|RestTemplate Proxy| FastAPI_App
+    Ctrl_Proxy -.->|Fallback Mock on Exception: ALT-DEMO-01 / Fallback Watchlist| Ctrl_Proxy
+
+    %% Backend Repositories to DB
+    Repo_Cam & Repo_Veh & Repo_Det & Repo_Audit --> DB_H2
+    Repo_Cam & Repo_Veh & Repo_Det & Repo_Audit -.-> DB_Postgres
+
+    %% AI Microservice Inner Flow
+    FastAPI_App --> AI_DetectPlate & AI_ProcessVid & AI_ProcessMulti & AI_Predict & AI_Watchlist
+    AI_DetectPlate -->|Heuristic Box + Echo Target Plate| AI_DetectPlate
+    AI_ProcessVid --> CV_Tracker
+    CV_Tracker --> CV_VehicleDet & CV_PlateDet & CV_OCR & CV_ReID & CV_Color
+    CV_Dehaze -.->|UNINVOKED DEAD CODE| CV_Dehaze
+    CV_Tracker --> Engine_GlobalReg
+    Engine_GlobalReg --> Engine_Scorer & Engine_Journey & Engine_Markov
+    AI_Watchlist --> Engine_Watchlist
+
+    %% CLI Scripts
+    Script_Process -->|Run Pipeline in Python| CV_Tracker
+    Script_Process -->|POST /api/detections/ingest (Basic Auth)| Ctrl_Detect
+    Script_Demo -->|Instantiate Orchestrator & Print URLs| Engine_GlobalReg
+
+    %% ─────────────────────────────────────────────────────────────────────────────
+    %% Styling & Legend
+    %% ─────────────────────────────────────────────────────────────────────────────
+    classDef realNode fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d;
+    classDef mockNode fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f;
+    classDef brokenNode fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d;
+    classDef deadNode fill:#f3f4f6,stroke:#9ca3af,stroke-width:2px,stroke-dasharray: 5 5,color:#374151;
+
+    class UI_Map,Next_VahanRoute,Ext_RapidAPI,Ext_OSRM,Ext_GoogleTiles,Ctrl_Health,Ctrl_Camera,Ctrl_Detect,Ctrl_Audit,Svc_Ingest,Svc_Audit,Repo_Cam,Repo_Veh,Repo_Det,Repo_Audit,DB_H2,DB_Postgres,Redis_Rate,Redis_Cache,Redis_PubSub,CV_VehicleDet,CV_Tracker,CV_OCR realNode;
+    class UI_ModalGrid,UI_ModalIngest,Svc_Registry,WS_Live,AI_DetectPlate mockNode;
+    class UI_Predict,AI_Predict brokenNode;
+    class CV_Dehaze deadNode;
+

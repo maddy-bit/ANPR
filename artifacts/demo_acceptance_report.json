@@ -1,0 +1,112 @@
+{
+  "timestamp": "2026-11-03T02:54:54Z",
+  "verdict": "PASS",
+  "steps": {
+    "dashboard_loaded": "PASSED",
+    "cam01_ingestion": "PASSED",
+    "cam02_ingestion": "PASSED",
+    "vehicle_profile_loaded": "PASSED",
+    "evidence_viewer": "PASSED",
+    "honest_trajectory_warning": "PASSED",
+    "reid_verification": "PASSED"
+  },
+  "models": {
+    "YOLOv8": {
+      "status": "EXECUTED",
+      "description": "Vehicle detection on raw video frames"
+    },
+    "ByteTrack": {
+      "status": "EXECUTED",
+      "description": "Multi-object vehicle track ID continuity"
+    },
+    "Plate_Detection": {
+      "status": "EXECUTED",
+      "description": "Plate localization & fallback vehicle crop search"
+    },
+    "EasyOCR": {
+      "status": "EXECUTED",
+      "description": "Alphanumeric optical character recognition"
+    },
+    "Dark_Channel_Prior": {
+      "status": "EXECUTED",
+      "description": "He et al. transmission dehazing option"
+    },
+    "ReID_Feature_Extractor": {
+      "status": "EXECUTED",
+      "description": "2048-dim deep visual embeddings"
+    }
+  },
+  "cam01_results": {
+    "job_id": "job-e683be30dfe9",
+    "status": "COMPLETED",
+    "frames_processed": 18,
+    "detections_count": 1,
+    "tracks_count": 1,
+    "synced_to_backend": 1,
+    "recognized_plates": [
+      "MH12AB12"
+    ],
+    "fps": 1.4,
+    "models_executed": [
+      "YOLOv8s-Vehicle",
+      "ByteTrack",
+      "EasyOCR",
+      "ColorClassifier",
+      "ReIdService"
+    ]
+  },
+  "cam02_results": {
+    "job_id": "job-cf4e54c99b74",
+    "status": "COMPLETED",
+    "frames_processed": 18,
+    "detections_count": 1,
+    "tracks_count": 1,
+    "synced_to_backend": 1,
+    "recognized_plates": [],
+    "fps": 1.9,
+    "models_executed": [
+      "YOLOv8s-Vehicle",
+      "ByteTrack",
+      "EasyOCR",
+      "ColorClassifier",
+      "ReIdService"
+    ]
+  },
+  "cross_camera_reid": {
+    "cam01_target": "MH12AB12",
+    "cam01_embedding_dim": 2048,
+    "cam02_embedding_dim": 2048,
+    "cosine_similarity": 0.8014,
+    "threshold": 0.5,
+    "conclusion": "MATCH (Score: 0.8014)",
+    "reid_persisted_in_db": true
+  },
+  "browser_console_logs": [
+    "[INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "[LOG] [HMR] connected",
+    "[ERROR] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <DashboardPage params={Promise} searchParams={Promise}>\n      <div className=\"flex flex-...\">\n        <SystemBootLoader>\n        <header>\n        <main className=\"flex flex-...\">\n          <InvestigationDashboard>\n            <div className=\"flex flex-...\">\n              <div>\n              <div className=\"grid flex-...\">\n                <div className=\"flex flex-...\">\n                  <VehicleSearchPanel onSearch={function handleSearch} isSearching={false}>\n                    <TiltCard3D>\n                      <div onMouseEnter={function onMouseEnter} onMouseLeave={function onMouseLeave} ...>\n                        <div style={{...}} className={\"relative \"}>\n                          <form onSubmit={function handleSubmit} className=\"neo-box ov...\">\n                            <div>\n                            <div className=\"p-4 space-...\">\n                              <div>\n                                <label>\n                                <div className=\"plate-box ...\">\n                                  <div>\n                                  <input\n                                    value=\"ET3633P\"\n                                    onChange={function onChange}\n                                    placeholder=\"ET3633P\"\n                                    spellCheck={false}\n                                    className=\"w-full bg-transparent px-3 py-2 font-mono text-lg sm:text-xl font-bold ...\"\n-                                   style={{caret-color:\"transparent\"}}\n                                  >\n                                  ...\n                              ...\n                  ...\n                ...\n              ...\n",
+    "[WARNING] [.WebGL-0x57dc00a77000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[WARNING] [.WebGL-0x57dc00a77000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[WARNING] [.WebGL-0x57dc00a77000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[WARNING] [.WebGL-0x57dc00a77000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+    "[ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "[ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "[ERROR] Failed to load resource: the server responded with a status of 404 ()",
+    "[ERROR] Failed to load resource: the server responded with a status of 404 ()",
+    "[ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "[ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "[ERROR] Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "[ERROR] Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "browser_network_failures": [],
+  "screenshots": [
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\01_dashboard_loaded.png",
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\02_cam01_file_selected.png",
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\03_cam01_completed.png",
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\04_cam02_file_selected.png",
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\05_cam02_completed.png",
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\06_vehicle_profile_mh12ab12.png",
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\07_evidence_snapshot_viewer.png",
+    "C:\\Users\\Asus\\OneDrive\\Desktop\\ai traffic\\artifacts\\screenshots\\08_honest_trajectory_warning.png"
+  ]
+}

@@ -13,30 +13,19 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Deliberately scoped, honestly labeled: this is "basic-tier" auth, not a
- * production identity system. It protects the actual attack surface for
- * this prototype - anyone being able to inject fake detection events, or
- * read the audit log of who searched what - with HTTP Basic auth on
- * writes and on /api/audit/**, without requiring a login UI in the
- * investigation frontend, which stays read-only against these endpoints.
- *
- * NOT protected, and why:
- * - GET endpoints (search, trajectory, analytics, evidence images): the
- *   frontend calls these unauthenticated. Gating them would need a real
- *   login flow (session/JWT) in the frontend, which is a bigger,
- *   separate piece of work - see README's production-readiness table.
- * - The /ws/live/** WebSocket handshake: browsers can't attach an
- *   Authorization header to a native WebSocket connection; real
- *   WS auth needs a short-lived token passed some other way (query
- *   param, sub-protocol) - also listed as a follow-up, not implemented
- *   here rather than half-done.
- *
- * Credentials are configurable via INGEST_USERNAME/INGEST_PASSWORD env
- * vars; the defaults below are for local development only.
+ * Security configuration for the City AI backend.
+ * Protects detection ingestion and audit log access with HTTP Basic auth.
+ * Uses ProductionSecurityValidator to enforce strict OS environment credentials in production.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private final ProductionSecurityValidator.ValidatedSecurityConfig validatedConfig;
+
+    public SecurityConfig(org.springframework.core.env.Environment env) {
+        this.validatedConfig = ProductionSecurityValidator.validate(env, System::getenv);
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -46,10 +35,10 @@ public class SecurityConfig {
     @Bean
     public UserDetailsService userDetailsService(
             PasswordEncoder passwordEncoder,
-            @Value("${ingest.username:ingest}") String username,
-            @Value("${ingest.password:change-me-in-production}") String password) {
+            @Value("${ingest.username:ingest}") String username) {
+
         var user = User.withUsername(username)
-                .password(passwordEncoder.encode(password))
+                .password(passwordEncoder.encode(validatedConfig.ingestPassword()))
                 .roles("INGEST")
                 .build();
         return new InMemoryUserDetailsManager(user);

@@ -9,11 +9,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -23,25 +20,19 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 /**
- * Simulates live camera processing for GET /ws/live/{plate}: replays the
- * vehicle's already-reconstructed trajectory (see TrajectoryEngine) as a
- * chronological stream of "detection" events, a few seconds apart -
- * exactly the master prompt's "simulate live camera processing" spec.
- * This is explicitly a simulation over stored/demo data, not a live RTSP
- * feed - there is no such feed in this prototype.
+ * Real-time WebSocket handler for GET /ws/live/{plate}.
+ * Connects clients to the live tracking channel for a target vehicle plate.
+ * Historical trajectories are never replayed as fake live feeds.
+ * Operates in standby mode awaiting genuine live camera detection events.
  */
 @Component
 public class LiveTrackingWebSocketHandler extends TextWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(LiveTrackingWebSocketHandler.class);
 
-    /** Fixed pacing between simulated detection events - illustrative, not real elapsed time. */
-    private static final long EVENT_INTERVAL_SECONDS = 3;
-
     private final TrajectoryEngine trajectoryEngine;
     private final ObjectMapper objectMapper;
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
-    private final Map<String, List<ScheduledFuture<?>>> sessionTasks = new ConcurrentHashMap<>();
+    private final Map<String, Set<WebSocketSession>> activePlateSessions = new ConcurrentHashMap<>();
 
     public LiveTrackingWebSocketHandler(TrajectoryEngine trajectoryEngine, ObjectMapper objectMapper) {
         this.trajectoryEngine = trajectoryEngine;
@@ -66,55 +57,47 @@ public class LiveTrackingWebSocketHandler extends TextWebSocketHandler {
         }
 
         List<TrajectoryPointDto> points = trajectory.points();
-        if (points.isEmpty()) {
-            sendAndClose(session, errorMessage("No detections available to simulate for: " + normalized));
-            return;
-        }
+        activePlateSessions.computeIfAbsent(normalized, k -> ConcurrentHashMap.newKeySet()).add(session);
 
+        // Send honest connected standby status
         send(session, connectedMessage(normalized, points.size()));
-
-        List<ScheduledFuture<?>> tasks = sessionTasks.computeIfAbsent(session.getId(), id -> new java.util.ArrayList<>());
-        for (int i = 0; i < points.size(); i++) {
-            int index = i;
-            ScheduledFuture<?> task = scheduler.schedule(
-                    () -> sendDetectionEvent(session, points, index, trajectory),
-                    (index + 1) * EVENT_INTERVAL_SECONDS,
-                    TimeUnit.SECONDS);
-            tasks.add(task);
-        }
-    }
-
-    private void sendDetectionEvent(WebSocketSession session, List<TrajectoryPointDto> points, int index, TrajectoryResponseDto trajectory) {
-        if (!session.isOpen()) return;
-        try {
-            Map<String, Object> message = Map.of(
-                    "type", "detection",
-                    "index", index,
-                    "total", points.size(),
-                    "point", points.get(index)
-            );
-            session.sendMessage(new TextMessage(java.util.Objects.requireNonNull(objectMapper.writeValueAsString(message))));
-
-            if (index == points.size() - 1) {
-                Map<String, Object> complete = Map.of(
-                        "type", "complete",
-                        "overallConfidence", trajectory.overallConfidence() != null ? trajectory.overallConfidence() : 1.0,
-                        "estimatedDistanceKm", trajectory.estimatedDistanceKm(),
-                        "estimatedDurationMinutes", trajectory.estimatedDurationMinutes()
-                );
-                session.sendMessage(new TextMessage(java.util.Objects.requireNonNull(objectMapper.writeValueAsString(complete))));
-                session.close(java.util.Objects.requireNonNull(CloseStatus.NORMAL));
-            }
-        } catch (IOException e) {
-            log.debug("Failed to send live detection event (client likely disconnected): {}", e.getMessage());
-        }
+        log.info("Live tracking session established for plate: {} (Session ID: {})", normalized, session.getId());
     }
 
     @Override
     public void afterConnectionClosed(@org.springframework.lang.NonNull WebSocketSession session, @org.springframework.lang.NonNull CloseStatus status) {
-        List<ScheduledFuture<?>> tasks = sessionTasks.remove(session.getId());
-        if (tasks != null) {
-            tasks.forEach(t -> t.cancel(false));
+        String plate = extractPlate(session);
+        if (plate != null) {
+            String normalized = PlateNormalizer.normalize(plate);
+            Set<WebSocketSession> sessions = activePlateSessions.get(normalized);
+            if (sessions != null) {
+                sessions.remove(session);
+                if (sessions.isEmpty()) {
+                    activePlateSessions.remove(normalized);
+                }
+            }
+        }
+        log.debug("Live tracking session closed: {}", session.getId());
+    }
+
+    /**
+     * Broadcasts a genuine real-time camera detection event to all connected sessions for this plate.
+     */
+    public void broadcastLiveDetection(String plate, TrajectoryPointDto point) {
+        String normalized = PlateNormalizer.normalize(plate);
+        Set<WebSocketSession> sessions = activePlateSessions.get(normalized);
+        if (sessions == null || sessions.isEmpty()) return;
+
+        Map<String, Object> message = Map.of(
+                "type", "detection",
+                "plate", normalized,
+                "point", point
+        );
+
+        for (WebSocketSession session : sessions) {
+            if (session.isOpen()) {
+                send(session, message);
+            }
         }
     }
 
@@ -143,8 +126,14 @@ public class LiveTrackingWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private Map<String, Object> connectedMessage(String plate, int totalEvents) {
-        return Map.of("type", "connected", "plate", plate, "totalEvents", totalEvents);
+    private Map<String, Object> connectedMessage(String plate, int totalHistoricalPoints) {
+        return Map.of(
+                "type", "connected",
+                "plate", plate,
+                "status", "LIVE_STREAM_STANDBY",
+                "historicalPoints", totalHistoricalPoints,
+                "message", "Live camera tracking stream connected. Awaiting real-time detection events."
+        );
     }
 
     private Map<String, Object> errorMessage(String message) {

@@ -14,7 +14,7 @@ interface VehicleRegistryModalProps {
 export function VehicleRegistryModal({
   isOpen,
   onClose,
-  initialPlate = "ET3633P",
+  initialPlate = "",
 }: VehicleRegistryModalProps) {
   const [queryPlate, setQueryPlate] = useState(initialPlate);
   const [activePlate, setActivePlate] = useState(initialPlate);
@@ -26,8 +26,21 @@ export function VehicleRegistryModal({
   const [activeTab, setActiveTab] = useState<"overview" | "technical" | "compliance">("overview");
 
   useEffect(() => {
+    if (isOpen) {
+      setQueryPlate(initialPlate);
+      setActivePlate(initialPlate);
+    }
+  }, [isOpen, initialPlate]);
+
+  useEffect(() => {
     let cancelled = false;
     async function load() {
+      if (!activePlate.trim()) {
+        setRecord(null);
+        setErrorInfo(null);
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       setErrorInfo(null);
       setRecord(null);
@@ -160,6 +173,10 @@ export function VehicleRegistryModal({
                       ? "Invalid Registration Plate Number"
                       : errorInfo.code === "API_QUOTA_EXCEEDED"
                       ? "VAHAN API Request Limit Reached"
+                      : errorInfo.code === "VAHAN_API_NOT_CONFIGURED"
+                      ? "VAHAN Integration Not Configured"
+                      : errorInfo.code === "VAHAN_SERVICE_UNAVAILABLE" || errorInfo.code === "VAHAN_SERVICE_TIMEOUT" || errorInfo.code === "UPSTREAM_AUTH_ERROR"
+                      ? "VAHAN Service Unavailable"
                       : "Vehicle Not Found in Registry"}
                   </h3>
                   <p className="mt-2 text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
@@ -171,6 +188,21 @@ export function VehicleRegistryModal({
                     Registration Number Queried: <strong className="text-slate-950 font-bold">{activePlate}</strong>
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Idle Prompt when No Plate Entered */}
+            {!isLoading && !errorInfo && !record && (
+              <div className="p-8 text-center space-y-3 font-mono">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-2xl border border-slate-300">
+                  🚗
+                </div>
+                <h3 className="text-sm font-bold uppercase text-slate-800 tracking-wide">
+                  Official Parivahan / VAHAN Search
+                </h3>
+                <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
+                  Enter an Indian vehicle registration plate number above (e.g. MH12AB1234, DL01AB1234) to query the central registry.
+                </p>
               </div>
             )}
 

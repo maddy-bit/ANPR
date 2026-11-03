@@ -359,6 +359,7 @@ export function InvestigationDashboard() {
         onClose={() => setIsCameraGridOpen(false)}
         cameras={cameras}
         targetVehicleType={summary?.vehicle.vehicleType ?? trajectory?.vehicle.vehicleType ?? "Sedan"}
+        onTargetDetected={(plate) => handleSearch(plate, "historical")}
       />
 
       {/* CCTV Video Feed Ingestion Modal */}
@@ -375,7 +376,7 @@ export function InvestigationDashboard() {
       <VehicleRegistryModal
         isOpen={isRegistryModalOpen}
         onClose={() => setIsRegistryModalOpen(false)}
-        initialPlate={summary?.vehicle.plate ?? "ET3633P"}
+        initialPlate={summary?.vehicle.plate ?? ""}
       />
     </div>
   );

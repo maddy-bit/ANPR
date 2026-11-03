@@ -49,4 +49,14 @@ class TrajectoryScoringServiceTest {
         assertFalse(score.physicallyImplausible());
         assertTrue(score.plateScore() == 0.5);
     }
+
+    @Test
+    void appearanceScoreIsNullWhenEmbeddingsAreAbsent() {
+        Instant t1 = Instant.parse("2026-08-30T18:14:23Z");
+        Instant t2 = t1.plus(7, ChronoUnit.MINUTES);
+
+        var score = scoringService.score(cam01, t1, 0.95, cam03, t2, 0.90);
+
+        org.assertj.core.api.Assertions.assertThat(score.appearanceScore()).isNull();
+    }
 }

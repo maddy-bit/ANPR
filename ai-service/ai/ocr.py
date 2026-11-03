@@ -130,14 +130,21 @@ class OCRService:
         if w < self._min_plate_w or h < self._min_plate_h:
             return None
 
-        # Enhance the plate image
-        enhanced = self.preprocessor.enhance(plate_crop_bgr)
-
-        # Run OCR
+        # Run OCR: try raw image first, fallback to enhanced
+        results = []
         try:
-            results = self.reader.readtext(enhanced)
+            results = self.reader.readtext(plate_crop_bgr)
         except Exception:
-            return None
+            results = []
+
+        if not results or (results and max((r[2] for r in results), default=0.0) < self._min_conf):
+            try:
+                enhanced = self.preprocessor.enhance(plate_crop_bgr)
+                enh_results = self.reader.readtext(enhanced)
+                if enh_results and (not results or max(r[2] for r in enh_results) > max(r[2] for r in results)):
+                    results = enh_results
+            except Exception:
+                pass
 
         if not results:
             return None

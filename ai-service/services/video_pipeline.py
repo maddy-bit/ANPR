@@ -15,7 +15,7 @@ import cv2
 import logging
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional, Callable, Any
 
 from config import cfg
 from schemas import (
@@ -65,6 +65,7 @@ class CameraAgent:
         frame_stride: int = int(cfg.FRAME_STRIDE),
         plate_sample_stride: int = int(cfg.PLATE_SAMPLE_STRIDE),
         enable_dehaze: bool = False,
+        progress_callback: Optional[Callable[[int, int, Dict[str, Any]], None]] = None,
     ) -> tuple[int, list[VehicleObservation], list[DetectionEvent]]:
         """
         Process an entire video feed.
@@ -78,6 +79,7 @@ class CameraAgent:
 
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total_video_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
         cap.release()
 
         try:
@@ -102,12 +104,16 @@ class CameraAgent:
         for tracked_frame, frame_img in self.tracker.track_video(video_path, frame_stride=frame_stride):
             frames_processed += 1
             rel_sec = tracked_frame.frame_number / fps
+
+            # Apply Dark Channel Prior (DCP) dehazing if enabled
+            if enable_dehaze:
+                frame_img = self.dehazer.dehaze(frame_img)
             abs_time = start_time + timedelta(seconds=rel_sec)
             timestamp_sec = rel_sec  # Relative timestamp in video timeline
 
             for vehicle in tracked_frame.vehicles:
                 tid = vehicle.track_id
-                
+
                 # Initialize track accumulators if new
                 if tid not in track_plates:
                     track_plates[tid] = []
@@ -151,26 +157,34 @@ class CameraAgent:
                     plate_text_norm = None
                     plate_conf = None
 
+                    ocr_res = None
+                    plate_crop = None
                     if plates:
                         best_plate = plates[0]
                         px1, py1, px2, py2 = best_plate.bbox
                         plate_crop = crop[py1:py2, px1:px2]
-
                         ocr_res = self.ocr.read_plate(plate_crop)
-                        if ocr_res and ocr_res.confidence >= 0.20:
-                            plate_text_raw = ocr_res.raw_text
-                            plate_text_norm = normalize_plate(ocr_res.raw_text)
-                            plate_conf = float(ocr_res.confidence)
 
-                            track_plates[tid].append(
-                                PlateObservation(
-                                    text=ocr_res.raw_text,
-                                    confidence=plate_conf,
-                                    frame_number=tracked_frame.frame_number,
-                                    timestamp=timestamp_sec,
-                                    crop=plate_crop if count < 2 else None,
-                                )
+                    # Direct crop fallback if no plate box found or reading too low
+                    if not ocr_res or ocr_res.confidence < 0.20:
+                        direct_ocr = self.ocr.read_plate(crop)
+                        if direct_ocr and direct_ocr.confidence >= 0.20:
+                            ocr_res = direct_ocr
+
+                    if ocr_res and ocr_res.confidence >= 0.20:
+                        plate_text_raw = ocr_res.raw_text
+                        plate_text_norm = normalize_plate(ocr_res.raw_text)
+                        plate_conf = float(ocr_res.confidence)
+
+                        track_plates[tid].append(
+                            PlateObservation(
+                                text=ocr_res.raw_text,
+                                confidence=plate_conf,
+                                frame_number=tracked_frame.frame_number,
+                                timestamp=timestamp_sec,
+                                crop=plate_crop if count < 2 else None,
                             )
+                        )
 
                     # Save evidence frame
                     crop_filename = f"crop_frame{tracked_frame.frame_number}_track{tid}.jpg"
@@ -193,8 +207,22 @@ class CameraAgent:
                             plate_text_normalized=plate_text_norm,
                             plate_confidence=plate_conf,
                             image_path=rel_crop_path,
+                            reid_confidence=0.85 if emb else None,
+                            reid_embedding=emb.vector.tolist() if (emb and hasattr(emb.vector, 'tolist')) else (list(emb.vector) if emb else None),
                         )
                     )
+
+            if progress_callback:
+                progress_callback(
+                    frames_processed,
+                    total_video_frames,
+                    {
+                        "current_frame": tracked_frame.frame_number,
+                        "detections_count": len(detection_events),
+                        "tracks_count": len(track_timestamps),
+                        "dcp_applied": enable_dehaze,
+                    }
+                )
 
         # Aggregate tracks into VehicleObservation objects
         vehicle_observations: List[VehicleObservation] = []

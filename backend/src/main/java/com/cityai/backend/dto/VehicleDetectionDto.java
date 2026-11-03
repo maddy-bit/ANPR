@@ -20,7 +20,8 @@ public record VehicleDetectionDto(
         Double reidConfidence,
         String imagePath,
         Integer trackId,
-        Integer frameNumber
+        Integer frameNumber,
+        String reidEmbedding
 ) {
     public static VehicleDetectionDto from(VehicleDetection d) {
         return new VehicleDetectionDto(
@@ -40,7 +41,8 @@ public record VehicleDetectionDto(
                 d.getReidConfidence(),
                 d.getImagePath(),
                 d.getTrackId(),
-                d.getFrameNumber()
+                d.getFrameNumber(),
+                d.getReidEmbedding()
         );
     }
 }

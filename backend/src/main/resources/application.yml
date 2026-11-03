@@ -51,21 +51,22 @@ server:
     include-message: always
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://sih-project-frontend-dzro.vercel.app}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
 # Credentials for POST /api/detections/ingest (HTTP Basic)
 ingest:
   username: ${INGEST_USERNAME:ingest}
-  password: ${INGEST_PASSWORD:change-me-in-production}
+  password: ${INGEST_PASSWORD:local-dev-ingest-only-not-for-prod}
 
 # Base URL of the Python AI microservice (Live Render URL)
 ai-service:
-  base-url: ${AI_SERVICE_URL:https://city-ai-engine.onrender.com}
+  base-url: ${AI_SERVICE_URL:http://localhost:8000}
 
 # Seed data and evidence frames
 app:
   data-dir: ${DATA_DIR:../data}
   evidence-dir: ${EVIDENCE_DIR:../data/evidence}
+  videos-dir: ${VIDEOS_DIR:../videos}
 
 logging:
   level:

@@ -11,7 +11,7 @@ interface VehicleRegistrySectionProps {
 }
 
 export function VehicleRegistrySection({
-  plateNumber = "ET3633P",
+  plateNumber = "",
   className = "",
   defaultExpanded = true,
 }: VehicleRegistrySectionProps) {
@@ -23,6 +23,11 @@ export function VehicleRegistrySection({
 
   useEffect(() => {
     let cancelled = false;
+    if (!plateNumber || !plateNumber.trim()) {
+      setFetchedRecord(null);
+      setIsLoading(false);
+      return;
+    }
     if (getVehicleRegistryRecord(plateNumber)) {
       return;
     }
@@ -374,8 +379,17 @@ export function VehicleRegistrySection({
               </div>
             ) : (
               <div className="text-xs text-slate-600 space-y-1">
-                <p className="font-bold text-slate-800">No registry record loaded for &ldquo;{plateNumber}&rdquo;.</p>
-                <p className="text-[11px] text-slate-500">Please enter a valid plate or query through the VAHAN modal.</p>
+                {!plateNumber ? (
+                  <>
+                    <p className="font-bold text-slate-800">No vehicle registration specified.</p>
+                    <p className="text-[11px] text-slate-500">Search for a vehicle plate above or query through the VAHAN modal.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-bold text-slate-800">No registry record loaded for &ldquo;{plateNumber}&rdquo;.</p>
+                    <p className="text-[11px] text-slate-500">Please enter a valid plate or query through the VAHAN modal.</p>
+                  </>
+                )}
               </div>
             )}
           </div>
