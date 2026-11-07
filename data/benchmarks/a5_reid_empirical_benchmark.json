@@ -1,0 +1,130 @@
+{
+  "timestamp": "2026-11-04 14:00:44",
+  "dataset": {
+    "name": "SIH26127 11-Camera CCTV Multi-Junction Network",
+    "total_crops": 47,
+    "num_identities": 6,
+    "num_cameras": 11,
+    "query_count": 11,
+    "gallery_count": 36
+  },
+  "models": {
+    "baseline_imagenet_resnet50": {
+      "name": "Torchvision ResNet50 (ImageNet-1k pre-trained)",
+      "weights": "ResNet50_Weights.DEFAULT",
+      "dim": 2048,
+      "norm": "L2",
+      "cross_camera": {
+        "rank1": 50.0,
+        "rank5": 100.0,
+        "rank10": 100.0,
+        "mAP": 67.5,
+        "valid_queries": 8
+      },
+      "same_camera": {
+        "rank1": 54.55,
+        "rank5": 100.0,
+        "rank10": 100.0,
+        "mAP": 71.99,
+        "valid_queries": 11
+      },
+      "latency_ms": 67.09,
+      "pos_similarity_mean": 0.8487,
+      "neg_similarity_mean": 0.4888,
+      "hard_neg_similarity_mean": 0.6022
+    },
+    "hsv_color_structure": {
+      "name": "Multi-scale Spatial HSV Color Histogram",
+      "dim": 960,
+      "cross_camera": {
+        "rank1": 25.0,
+        "rank5": 100.0,
+        "rank10": 100.0,
+        "mAP": 49.17,
+        "valid_queries": 8
+      },
+      "latency_ms": 0.18
+    },
+    "vehicle_specific_fastreid": {
+      "name": "FastReID SBS ResNet-50-IBN (VeRi-776)",
+      "weights": "veri_sbs_R50-ibn.pth",
+      "dim": 2048,
+      "norm": "L2",
+      "cross_camera": {
+        "rank1": 75.0,
+        "rank5": 100.0,
+        "rank10": 100.0,
+        "mAP": 80.0,
+        "valid_queries": 8
+      },
+      "same_camera": {
+        "rank1": 63.64,
+        "rank5": 100.0,
+        "rank10": 100.0,
+        "mAP": 72.2,
+        "valid_queries": 11
+      },
+      "latency_ms": 74.71,
+      "pos_similarity_mean": 0.8452,
+      "neg_similarity_mean": 0.5551,
+      "hard_neg_similarity_mean": 0.656
+    },
+    "multimodal_comparison": {
+      "visual_only_rank1": 75.0,
+      "plate_only_rank1": 0.0,
+      "fused_visual_plus_plate_rank1": 25.0,
+      "fused_mAP": 35.46
+    }
+  },
+  "false_match_rates": [
+    {
+      "threshold": 0.5,
+      "fmr_baseline_all_pct": 27.03,
+      "fmr_baseline_hard_neg_pct": 73.49,
+      "fmr_specific_all_pct": 72.67,
+      "fmr_specific_hard_neg_pct": 100.0
+    },
+    {
+      "threshold": 0.6,
+      "fmr_baseline_all_pct": 10.76,
+      "fmr_baseline_hard_neg_pct": 44.58,
+      "fmr_specific_all_pct": 19.19,
+      "fmr_specific_hard_neg_pct": 57.83
+    },
+    {
+      "threshold": 0.7,
+      "fmr_baseline_all_pct": 7.27,
+      "fmr_baseline_hard_neg_pct": 30.12,
+      "fmr_specific_all_pct": 7.27,
+      "fmr_specific_hard_neg_pct": 30.12
+    },
+    {
+      "threshold": 0.75,
+      "fmr_baseline_all_pct": 4.65,
+      "fmr_baseline_hard_neg_pct": 19.28,
+      "fmr_specific_all_pct": 7.27,
+      "fmr_specific_hard_neg_pct": 30.12
+    },
+    {
+      "threshold": 0.8,
+      "fmr_baseline_all_pct": 1.16,
+      "fmr_baseline_hard_neg_pct": 4.82,
+      "fmr_specific_all_pct": 1.16,
+      "fmr_specific_hard_neg_pct": 4.82
+    },
+    {
+      "threshold": 0.85,
+      "fmr_baseline_all_pct": 0.0,
+      "fmr_baseline_hard_neg_pct": 0.0,
+      "fmr_specific_all_pct": 1.16,
+      "fmr_specific_hard_neg_pct": 4.82
+    },
+    {
+      "threshold": 0.9,
+      "fmr_baseline_all_pct": 0.0,
+      "fmr_baseline_hard_neg_pct": 0.0,
+      "fmr_specific_all_pct": 0.0,
+      "fmr_specific_hard_neg_pct": 0.0
+    }
+  ]
+}

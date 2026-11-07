@@ -26,18 +26,34 @@ public class VehicleController {
 
     private final VehicleRepository vehicleRepository;
     private final VehicleDetectionRepository detectionRepository;
-    private final VehicleRegistryService registryService;
     private final AuditLogService auditLogService;
+
+    public VehicleController(
+            VehicleRepository vehicleRepository,
+            VehicleDetectionRepository detectionRepository,
+            AuditLogService auditLogService) {
+        this.vehicleRepository = vehicleRepository;
+        this.detectionRepository = detectionRepository;
+        this.auditLogService = auditLogService;
+    }
 
     public VehicleController(
             VehicleRepository vehicleRepository,
             VehicleDetectionRepository detectionRepository,
             VehicleRegistryService registryService,
             AuditLogService auditLogService) {
-        this.vehicleRepository = vehicleRepository;
-        this.detectionRepository = detectionRepository;
-        this.registryService = registryService;
-        this.auditLogService = auditLogService;
+        this(vehicleRepository, detectionRepository, auditLogService);
+    }
+
+    /**
+     * Returns genuinely detected vehicles recently ingested into the database.
+     * When the database is fresh/empty, returns an honest empty list [].
+     */
+    @GetMapping("/recent")
+    public List<VehicleDto> getRecentVehicles() {
+        return vehicleRepository.findTop10ByOrderByIdDesc().stream()
+                .map(VehicleDto::from)
+                .toList();
     }
 
     @GetMapping("/{plate}")
@@ -45,16 +61,9 @@ public class VehicleController {
         String normalized = PlateNormalizer.normalize(plate);
         auditLogService.record("VEHICLE_SEARCH", normalized, request);
 
+        // Honest query: only return vehicles that actually exist in the database from genuine detections
         Vehicle vehicle = vehicleRepository.findByPlate(normalized)
-                .orElseGet(() -> {
-                    var reg = registryService.lookup(normalized);
-                    if (reg.isPresent()) {
-                        var r = reg.get();
-                        Vehicle v = new Vehicle(r.plate(), r.vehicleType(), r.color(), r.make(), r.model());
-                        return vehicleRepository.save(v);
-                    }
-                    throw new java.util.NoSuchElementException("No vehicle found for plate: " + normalized);
-                });
+                .orElseThrow(() -> new java.util.NoSuchElementException("No vehicle found for plate: " + normalized));
 
         List<VehicleDetection> detections =
                 detectionRepository.findByVehicle_PlateOrderByTimestampAsc(normalized);

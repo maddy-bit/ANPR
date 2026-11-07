@@ -44,6 +44,8 @@ import { VehicleRegistryModal } from "./VehicleRegistryModal";
 
 export function InvestigationDashboard() {
   const [cameras, setCameras] = useState<CameraDto[]>([]);
+  const [camerasLoading, setCamerasLoading] = useState(true);
+  const [camerasError, setCamerasError] = useState<string | null>(null);
   const [searchState, setSearchState] = useState<SearchState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<VehicleSummaryDto | null>(null);
@@ -58,9 +60,25 @@ export function InvestigationDashboard() {
   const liveCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     getCameras()
-      .then(setCameras)
-      .catch(() => {});
+      .then((cams) => {
+        if (!cancelled) {
+          setCameras(cams);
+          setCamerasLoading(false);
+          setCamerasError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setCameras([]);
+          setCamerasLoading(false);
+          setCamerasError(err instanceof Error ? err.message : "Failed to load camera network");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -204,7 +222,7 @@ export function InvestigationDashboard() {
             className="neo-btn-secondary flex items-center gap-2 px-4 py-2.5 text-sm font-mono font-bold uppercase cursor-pointer"
           >
             <span>🎥</span>
-            <span>12-Camera Grid</span>
+            <span>Camera Grid{cameras.length > 0 ? ` (${cameras.length})` : ''}</span>
           </button>
           <button
             type="button"
@@ -239,7 +257,7 @@ export function InvestigationDashboard() {
                   <span>Ready for Target Input</span>
                 </div>
                 <p className="text-sm text-slate-800 leading-relaxed font-medium">
-                  Enter a vehicle registration number above or choose a preset scenario, then click <strong className="text-slate-950 font-bold font-mono">⚡ Reconstruct 3D Trajectory</strong> to begin multi-camera tracking.
+                  Enter a vehicle registration number above, then click <strong className="text-slate-950 font-bold font-mono">⚡ Reconstruct 3D Trajectory</strong> to begin multi-camera tracking.
                 </p>
               </motion.div>
             )}
@@ -257,7 +275,7 @@ export function InvestigationDashboard() {
                   <span className="uppercase tracking-wide font-mono">TARGET RECORD NOT FOUND</span>
                 </div>
                 <p className="text-sm text-slate-700 font-medium">
-                  No camera detections match this plate string. Try selecting one of the preset targets above.
+                  No camera detections match this registration plate. Ingest video footage containing this vehicle or verify the plate entered.
                 </p>
               </motion.div>
             )}
@@ -332,7 +350,7 @@ export function InvestigationDashboard() {
           {points.length > 0 && selectedPoint ? (
             <EvidenceViewer
               point={selectedPoint}
-              targetPlate={summary?.vehicle.plate ?? "ET3633P"}
+              targetPlate={summary?.vehicle.plate ?? ""}
               vehicleType={summary?.vehicle.vehicleType ?? trajectory?.vehicle.vehicleType ?? "Sedan"}
               vehicleColor={summary?.vehicle.color ?? trajectory?.vehicle.color ?? "Silver"}
               customVideoUrls={customVideoUrls}

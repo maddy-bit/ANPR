@@ -4,23 +4,60 @@
  */
 
 export function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, "");
+  }
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
+    return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, "");
   }
-  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return "http://localhost:8080";
+
+  // Browser runtime
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]") {
+      return "http://localhost:8080";
+    }
+    // Deployed browser on non-localhost without explicit env vars:
+    // Support relative /api/... requests routed through a same-origin reverse proxy.
+    // Do not silently target http://localhost:8080 on the client workstation.
+    return "";
   }
-  return "https://sih-project-62k1.onrender.com";
+
+  // Server-side rendering (SSR / Node.js runtime):
+  // Node.js fetch() requires an absolute URL with scheme and authority.
+  if (process.env.INTERNAL_API_URL) {
+    return process.env.INTERNAL_API_URL.replace(/\/+$/, "");
+  }
+  if (process.env.API_URL) {
+    return process.env.API_URL.replace(/\/+$/, "");
+  }
+
+  return "http://localhost:8080";
 }
 
 export function getAiServiceBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_AI_SERVICE_URL) {
-    return process.env.NEXT_PUBLIC_AI_SERVICE_URL;
+    return process.env.NEXT_PUBLIC_AI_SERVICE_URL.replace(/\/+$/, "");
   }
-  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return "http://localhost:8000";
+  if (process.env.NEXT_PUBLIC_AI_URL) {
+    return process.env.NEXT_PUBLIC_AI_URL.replace(/\/+$/, "");
   }
-  return "https://city-ai-engine.onrender.com";
+
+  // Browser runtime
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]") {
+      return "http://localhost:8000";
+    }
+    return "";
+  }
+
+  // Server-side rendering runtime
+  if (process.env.INTERNAL_AI_URL) {
+    return process.env.INTERNAL_AI_URL.replace(/\/+$/, "");
+  }
+
+  return "http://localhost:8000";
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -142,24 +179,36 @@ export class ApiError extends Error {
   }
 }
 
-// Fallback seed cameras from data/cameras.json
-export const SEED_CAMERAS: CameraDto[] = [
-  { id: "CAM-01", name: "Shivajinagar Chowk", latitude: 18.5308, longitude: 73.8474, direction: "SE", status: "ONLINE", videoSource: "videos/cam01.mp4" },
-  { id: "CAM-02", name: "FC Road Junction", latitude: 18.5236, longitude: 73.8478, direction: "S", status: "ONLINE", videoSource: "videos/cam02.mp4" },
-  { id: "CAM-03", name: "JM Road - Deccan Gymkhana", latitude: 18.5158, longitude: 73.8412, direction: "SW", status: "ONLINE", videoSource: "videos/cam03.mp4" },
-  { id: "CAM-04", name: "Karve Road Bridge", latitude: 18.5074, longitude: 73.8258, direction: "W", status: "ONLINE", videoSource: "videos/cam04.mp4" },
-  { id: "CAM-05", name: "Swargate Junction", latitude: 18.5008, longitude: 73.8567, direction: "E", status: "ONLINE", videoSource: "videos/cam05.mp4" },
-  { id: "CAM-06", name: "Hadapsar Industrial Estate", latitude: 18.5089, longitude: 73.9260, direction: "E", status: "ONLINE", videoSource: "videos/cam06.mp4" },
-  { id: "CAM-07", name: "Kothrud Depot", latitude: 18.5074, longitude: 73.8077, direction: "NW", status: "ONLINE", videoSource: "videos/cam07.mp4" },
-  { id: "CAM-08", name: "Baner Road", latitude: 18.5642, longitude: 73.7769, direction: "N", status: "ONLINE", videoSource: "videos/cam08.mp4" },
-  { id: "CAM-09", name: "Hinjewadi Phase 1", latitude: 18.5908, longitude: 73.7392, direction: "W", status: "PROCESSING", videoSource: "videos/cam09.mp4" },
-  { id: "CAM-10", name: "Wakad Bridge", latitude: 18.5993, longitude: 73.7629, direction: "N", status: "ONLINE", videoSource: "videos/cam10.mp4" },
-  { id: "CAM-11", name: "Aundh - ITI Road", latitude: 18.5590, longitude: 73.8080, direction: "NE", status: "ONLINE", videoSource: "videos/cam11.mp4" },
-  { id: "CAM-12", name: "University Circle", latitude: 18.5529, longitude: 73.8291, direction: "SE", status: "OFFLINE", videoSource: "videos/cam12.mp4" }
-];
+/**
+ * Normalizes an API route path against a base URL:
+ * - Strips leading '/api' only when it constitutes a complete path segment ('/api' or '/api/...').
+ * - Restores missing leading slashes (e.g. 'cameras' -> '/cameras').
+ * - Preserves non-segment prefixes like '/apiary' or '/apiv2/videos'.
+ * - Avoids double slashes or duplicated '/api/api' prefixes.
+ */
+export function normalizeApiPath(path: string, baseUrl: string = getApiBaseUrl()): string {
+  const cleanBase = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
+  if (!path || path === "/" || path === "/api") {
+    return cleanBase ? `${cleanBase}/api` : "/api";
+  }
+  if (path === "/api/") {
+    return cleanBase ? `${cleanBase}/api/` : "/api/";
+  }
+
+  const withLeadingSlash = path.startsWith("/") ? path : `/${path}`;
+
+  let subPath: string;
+  if (withLeadingSlash.startsWith("/api/")) {
+    subPath = withLeadingSlash.substring(4); // e.g. "/api/videos" -> "/videos"
+  } else {
+    subPath = withLeadingSlash; // e.g. "/cameras", "/apiary", "/apiv2/videos"
+  }
+
+  return cleanBase ? `${cleanBase}/api${subPath}` : `/api${subPath}`;
+}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}/api${path}`;
+  const url = normalizeApiPath(path);
 
   let response: Response;
   try {
@@ -170,7 +219,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
         ...init?.headers,
       },
     });
-  } catch {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
     throw new ApiError(`Unable to reach backend at ${url}`);
   }
 
@@ -188,39 +240,46 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function getHealth(): Promise<HealthResponse> {
-  return apiFetch<HealthResponse>("/health");
+export async function getHealth(options?: { signal?: AbortSignal }): Promise<HealthResponse> {
+  return apiFetch<HealthResponse>("/health", { signal: options?.signal });
 }
 
-export async function getCameras(): Promise<CameraDto[]> {
-  try {
-    const cams = await apiFetch<CameraDto[]>("/cameras");
-    if (!cams || cams.length === 0) return SEED_CAMERAS;
-    return cams;
-  } catch {
-    return SEED_CAMERAS;
+export async function getCameras(options?: { signal?: AbortSignal }): Promise<CameraDto[]> {
+  const cams = await apiFetch<CameraDto[]>("/cameras", { signal: options?.signal });
+  if (!Array.isArray(cams)) {
+    throw new ApiError("Malformed response: cameras must be an array");
   }
+  return cams;
 }
 
-export async function getVehicleSummary(plate: string): Promise<VehicleSummaryDto> {
-  return apiFetch<VehicleSummaryDto>(`/vehicles/${encodeURIComponent(plate)}`);
+export async function getRecentVehicles(options?: { signal?: AbortSignal }): Promise<VehicleDto[]> {
+  const list = await apiFetch<VehicleDto[]>("/vehicles/recent", { signal: options?.signal });
+  if (!Array.isArray(list)) {
+    throw new ApiError("Malformed response: recent vehicles must be an array");
+  }
+  return list;
 }
 
-export async function getVehicleDetections(plate: string): Promise<VehicleDetectionDto[]> {
-  return apiFetch<VehicleDetectionDto[]>(`/vehicles/${encodeURIComponent(plate)}/detections`);
+export async function getVehicleSummary(plate: string, options?: { signal?: AbortSignal }): Promise<VehicleSummaryDto> {
+  return apiFetch<VehicleSummaryDto>(`/vehicles/${encodeURIComponent(plate)}`, { signal: options?.signal });
 }
 
-export async function getVehicleTrajectory(plate: string): Promise<TrajectoryResponseDto> {
-  return apiFetch<TrajectoryResponseDto>(`/vehicles/${encodeURIComponent(plate)}/trajectory`);
+export async function getVehicleDetections(plate: string, options?: { signal?: AbortSignal }): Promise<VehicleDetectionDto[]> {
+  return apiFetch<VehicleDetectionDto[]>(`/vehicles/${encodeURIComponent(plate)}/detections`, { signal: options?.signal });
 }
 
-export async function getAnalyticsOverview(): Promise<AnalyticsOverviewDto> {
-  return apiFetch<AnalyticsOverviewDto>("/analytics/overview");
+export async function getVehicleTrajectory(plate: string, options?: { signal?: AbortSignal }): Promise<TrajectoryResponseDto> {
+  return apiFetch<TrajectoryResponseDto>(`/vehicles/${encodeURIComponent(plate)}/trajectory`, { signal: options?.signal });
+}
+
+export async function getAnalyticsOverview(options?: { signal?: AbortSignal }): Promise<AnalyticsOverviewDto> {
+  return apiFetch<AnalyticsOverviewDto>("/analytics/overview", { signal: options?.signal });
 }
 
 export function evidenceImageUrl(imagePath: string | null | undefined): string | null {
   if (!imagePath) return null;
-  return `${API_BASE_URL}/evidence/${imagePath}`;
+  const baseUrl = getApiBaseUrl();
+  return baseUrl ? `${baseUrl}/evidence/${imagePath}` : `/evidence/${imagePath}`;
 }
 
 export function cameraVideoUrl(cameraId: string | null | undefined): string | null {
@@ -294,151 +353,184 @@ interface RawProcessVideoResponse {
   detections?: unknown[];
 }
 
-export async function predictTrajectory(globalId: string): Promise<TrajectoryCandidateDto[]> {
-  try {
-    const res = await apiFetch<RawTrajectoryResponse | RawCandidateItem[]>(`/predict-trajectory/${encodeURIComponent(globalId)}`);
-    const rawList = Array.isArray(res) ? res : (res?.candidates ?? []);
-    if (rawList.length > 0) {
-      return rawList.map((c: RawCandidateItem) => ({
-        nextCameraId: c.nextCameraId ?? c.next_camera_id ?? "CAM-UNKNOWN",
-        nextCameraName: c.nextCameraName ?? c.next_camera_name ?? "Next Junction",
-        probability: c.probability ?? 0,
-        estimatedTravelSeconds: c.estimatedTravelSeconds ?? c.estimated_travel_seconds ?? 0,
-        estimatedArrivalIso:
-          c.estimatedArrivalIso ??
-          (c.estimated_arrival_timestamp
-            ? new Date(c.estimated_arrival_timestamp * 1000).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : undefined),
-      }));
-    }
-  } catch {
-    // fallback
-  }
+export async function predictTrajectory(
+  globalId: string,
+  options?: { signal?: AbortSignal }
+): Promise<TrajectoryCandidateDto[]> {
+  let rawList: RawCandidateItem[] | null = null;
+  let lastError: Error | null = null;
 
   try {
-    const res = await fetch(`${AI_SERVICE_BASE_URL}/predict-trajectory/${encodeURIComponent(globalId)}`);
-    if (res.ok) {
-      const data = (await res.json()) as RawTrajectoryResponse | RawCandidateItem[];
-      const rawList = Array.isArray(data) ? data : (data?.candidates ?? []);
-      return rawList.map((c: RawCandidateItem) => ({
-        nextCameraId: c.nextCameraId ?? c.next_camera_id ?? "CAM-UNKNOWN",
-        nextCameraName: c.nextCameraName ?? c.next_camera_name ?? "Next Junction",
-        probability: c.probability ?? 0,
-        estimatedTravelSeconds: c.estimatedTravelSeconds ?? c.estimated_travel_seconds ?? 0,
-        estimatedArrivalIso:
-          c.estimatedArrivalIso ??
-          (c.estimated_arrival_timestamp
-            ? new Date(c.estimated_arrival_timestamp * 1000).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : undefined),
-      }));
+    const res = await apiFetch<RawTrajectoryResponse | RawCandidateItem[]>(
+      `/predict-trajectory/${encodeURIComponent(globalId)}`,
+      { signal: options?.signal }
+    );
+    rawList = Array.isArray(res) ? res : (res?.candidates ?? []);
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
     }
-  } catch {
-    // fallback
-  }
-  return [];
-}
-
-export async function getSecurityAlerts(): Promise<SecurityAlertDto[]> {
-  try {
-    const alerts = await apiFetch<RawSecurityAlertItem[]>("/security-alerts");
-    if (Array.isArray(alerts) && alerts.length > 0) {
-      return alerts.map((a: RawSecurityAlertItem) => ({
-        alertId: a.alertId ?? a.alert_id ?? `ALT-${Date.now()}`,
-        alertType: a.alertType ?? a.alert_type ?? "ALERT",
-        severity: (a.severity?.toUpperCase() ?? "MEDIUM") as SecurityAlertDto["severity"],
-        plateNumber: a.plateNumber ?? a.plate_number ?? "UNKNOWN",
-        globalId: a.globalId ?? a.global_id,
-        cameraId: a.cameraId ?? a.camera_id ?? "CAM-01",
-        timestamp: a.timestamp ?? Date.now() / 1000,
-        description: a.description ?? "",
-      }));
-    }
-  } catch {
-    // fallback
-  }
-
-  try {
-    const res = await fetch(`${AI_SERVICE_BASE_URL}/security-alerts`);
-    if (res.ok) {
-      const data = (await res.json()) as RawSecurityAlertItem[];
-      if (Array.isArray(data)) {
-        return data.map((a: RawSecurityAlertItem) => ({
-          alertId: a.alertId ?? a.alert_id ?? `ALT-${Date.now()}`,
-          alertType: a.alertType ?? a.alert_type ?? "ALERT",
-          severity: (a.severity?.toUpperCase() ?? "MEDIUM") as SecurityAlertDto["severity"],
-          plateNumber: a.plateNumber ?? a.plate_number ?? "UNKNOWN",
-          globalId: a.globalId ?? a.global_id,
-          cameraId: a.cameraId ?? a.camera_id ?? "CAM-01",
-          timestamp: a.timestamp ?? Date.now() / 1000,
-          description: a.description ?? "",
-        }));
+    lastError = err instanceof Error ? err : new Error(String(err));
+    try {
+      const aiBase = getAiServiceBaseUrl();
+      const aiUrl = aiBase
+        ? `${aiBase}/predict-trajectory/${encodeURIComponent(globalId)}`
+        : `/predict-trajectory/${encodeURIComponent(globalId)}`;
+      const res = await fetch(aiUrl, {
+        signal: options?.signal,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as RawTrajectoryResponse | RawCandidateItem[];
+        rawList = Array.isArray(data) ? data : (data?.candidates ?? []);
+      } else {
+        throw new ApiError(`AI predict-trajectory failed with HTTP ${res.status}`, res.status);
       }
-    }
-  } catch {
-    // fallback
-  }
-
-  return [
-    {
-      alertId: "ALT-DEMO-01",
-      alertType: "HOTLIST_MATCH",
-      severity: "CRITICAL",
-      plateNumber: "MH15TC554",
-      cameraId: "CAM-01",
-      timestamp: Date.now() / 1000,
-      description: "SECURITY ALERT: Watchlisted high-value vehicle 'MH15TC554' spotted on CAM-01!",
-    },
-  ];
-}
-
-export async function getWatchlist(): Promise<{ plateNumber: string; reason: string; severity: string }[]> {
-  try {
-    const list = await apiFetch<RawWatchlistItem[]>("/watchlist");
-    if (Array.isArray(list) && list.length > 0) {
-      return list.map((w: RawWatchlistItem) => ({
-        plateNumber: w.plateNumber ?? w.plate_number ?? "",
-        reason: w.reason ?? "",
-        severity: w.severity ?? "HIGH",
-      }));
-    }
-  } catch {
-    // fallback
-  }
-
-  try {
-    const res = await fetch(`${AI_SERVICE_BASE_URL}/watchlist`);
-    if (res.ok) {
-      const list = (await res.json()) as RawWatchlistItem[];
-      if (Array.isArray(list)) {
-        return list.map((w: RawWatchlistItem) => ({
-          plateNumber: w.plateNumber ?? w.plate_number ?? "",
-          reason: w.reason ?? "",
-          severity: w.severity ?? "HIGH",
-        }));
+    } catch (aiErr) {
+      if (aiErr instanceof Error && aiErr.name === "AbortError") {
+        throw aiErr;
       }
+      throw aiErr instanceof ApiError
+        ? aiErr
+        : (lastError instanceof ApiError ? lastError : new ApiError("Trajectory prediction service unavailable"));
     }
-  } catch {
-    // fallback
   }
 
-  return [
-    { plateNumber: "MH15TC554", reason: "HIGH_VALUE_STOLEN_VEHICLE", severity: "CRITICAL" },
-    { plateNumber: "KL55R2473", reason: "SUSPECT_OF_INTEREST", severity: "HIGH" },
-  ];
+  if (rawList === null || !Array.isArray(rawList)) {
+    throw new ApiError("Malformed response from trajectory prediction service");
+  }
+
+  return rawList.map((c: RawCandidateItem) => ({
+    nextCameraId: c.nextCameraId ?? c.next_camera_id ?? "CAM-UNKNOWN",
+    nextCameraName: c.nextCameraName ?? c.next_camera_name ?? "Next Junction",
+    probability: c.probability ?? 0,
+    estimatedTravelSeconds: c.estimatedTravelSeconds ?? c.estimated_travel_seconds ?? 0,
+    estimatedArrivalIso:
+      c.estimatedArrivalIso ??
+      (c.estimated_arrival_timestamp
+        ? new Date(c.estimated_arrival_timestamp * 1000).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : undefined),
+  }));
 }
 
-export async function addWatchlistEntry(entry: {
-  plateNumber: string;
-  reason: string;
-  severity: string;
-  ownerName?: string;
-}): Promise<{ plateNumber: string; reason: string; severity: string }> {
+export async function getSecurityAlerts(options?: { signal?: AbortSignal }): Promise<SecurityAlertDto[]> {
+  let rawList: RawSecurityAlertItem[] | null = null;
+  let lastError: Error | null = null;
+
+  try {
+    const alerts = await apiFetch<RawSecurityAlertItem[]>("/security-alerts", {
+      signal: options?.signal,
+    });
+    if (Array.isArray(alerts)) {
+      rawList = alerts;
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
+    lastError = err instanceof Error ? err : new Error(String(err));
+    try {
+      const aiBase = getAiServiceBaseUrl();
+      const aiUrl = aiBase ? `${aiBase}/security-alerts` : `/security-alerts`;
+      const res = await fetch(aiUrl, {
+        signal: options?.signal,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as RawSecurityAlertItem[];
+        if (Array.isArray(data)) {
+          rawList = data;
+        }
+      } else {
+        throw new ApiError(`AI security-alerts failed with HTTP ${res.status}`, res.status);
+      }
+    } catch (aiErr) {
+      if (aiErr instanceof Error && aiErr.name === "AbortError") {
+        throw aiErr;
+      }
+      throw aiErr instanceof ApiError
+        ? aiErr
+        : (lastError instanceof ApiError ? lastError : new ApiError("Security alerts service unavailable"));
+    }
+  }
+
+  if (rawList === null || !Array.isArray(rawList)) {
+    throw new ApiError("Malformed response: security alerts must be an array");
+  }
+
+  return rawList.map((a: RawSecurityAlertItem) => ({
+    alertId: a.alertId ?? a.alert_id ?? `ALT-${Date.now()}`,
+    alertType: a.alertType ?? a.alert_type ?? "ALERT",
+    severity: (a.severity?.toUpperCase() ?? "MEDIUM") as SecurityAlertDto["severity"],
+    plateNumber: a.plateNumber ?? a.plate_number ?? "UNKNOWN",
+    globalId: a.globalId ?? a.global_id,
+    cameraId: a.cameraId ?? a.camera_id ?? "CAM-01",
+    timestamp: a.timestamp ?? Date.now() / 1000,
+    description: a.description ?? "",
+  }));
+}
+
+export async function getWatchlist(options?: { signal?: AbortSignal }): Promise<{ plateNumber: string; reason: string; severity: string }[]> {
+  let rawList: RawWatchlistItem[] | null = null;
+  let lastError: Error | null = null;
+
+  try {
+    const list = await apiFetch<RawWatchlistItem[]>("/watchlist", {
+      signal: options?.signal,
+    });
+    if (Array.isArray(list)) {
+      rawList = list;
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
+    lastError = err instanceof Error ? err : new Error(String(err));
+    try {
+      const aiBase = getAiServiceBaseUrl();
+      const aiUrl = aiBase ? `${aiBase}/watchlist` : `/watchlist`;
+      const res = await fetch(aiUrl, {
+        signal: options?.signal,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as RawWatchlistItem[];
+        if (Array.isArray(data)) {
+          rawList = data;
+        }
+      } else {
+        throw new ApiError(`AI watchlist failed with HTTP ${res.status}`, res.status);
+      }
+    } catch (aiErr) {
+      if (aiErr instanceof Error && aiErr.name === "AbortError") {
+        throw aiErr;
+      }
+      throw aiErr instanceof ApiError
+        ? aiErr
+        : (lastError instanceof ApiError ? lastError : new ApiError("Watchlist service unavailable"));
+    }
+  }
+
+  if (rawList === null || !Array.isArray(rawList)) {
+    throw new ApiError("Malformed response: watchlist must be an array");
+  }
+
+  return rawList.map((w: RawWatchlistItem) => ({
+    plateNumber: w.plateNumber ?? w.plate_number ?? "",
+    reason: w.reason ?? "",
+    severity: w.severity ?? "HIGH",
+  }));
+}
+
+export async function addWatchlistEntry(
+  entry: {
+    plateNumber: string;
+    reason: string;
+    severity: string;
+    ownerName?: string;
+  },
+  options?: { signal?: AbortSignal }
+): Promise<{ plateNumber: string; reason: string; severity: string }> {
   const payload = {
     plateNumber: entry.plateNumber,
     plate_number: entry.plateNumber,
@@ -448,22 +540,35 @@ export async function addWatchlistEntry(entry: {
     owner_name: entry.ownerName,
   };
 
+  let lastError: Error | null = null;
   try {
     const res = await apiFetch<RawWatchlistItem>("/watchlist", {
       method: "POST",
       body: JSON.stringify(payload),
+      signal: options?.signal,
     });
     return {
       plateNumber: res.plateNumber ?? res.plate_number ?? entry.plateNumber,
       reason: res.reason ?? entry.reason,
       severity: res.severity ?? entry.severity,
     };
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
+    lastError = err instanceof Error ? err : new Error(String(err));
+    // If rejected with client validation error (4xx), do not duplicate mutation to AI service
+    if (lastError instanceof ApiError && lastError.status && lastError.status < 500) {
+      throw lastError;
+    }
     try {
-      const res = await fetch(`${AI_SERVICE_BASE_URL}/watchlist`, {
+      const aiBase = getAiServiceBaseUrl();
+      const aiUrl = aiBase ? `${aiBase}/watchlist` : `/watchlist`;
+      const res = await fetch(aiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: options?.signal,
       });
       if (res.ok) {
         const data = (await res.json()) as RawWatchlistItem;
@@ -473,10 +578,15 @@ export async function addWatchlistEntry(entry: {
           severity: data.severity ?? entry.severity,
         };
       }
-    } catch {
-      // fallback
+      throw new ApiError(`AI watchlist update failed with HTTP ${res.status}`, res.status);
+    } catch (aiErr) {
+      if (aiErr instanceof Error && aiErr.name === "AbortError") {
+        throw aiErr;
+      }
+      throw aiErr instanceof ApiError
+        ? aiErr
+        : (lastError instanceof ApiError ? lastError : new ApiError("Watchlist service unavailable"));
     }
-    return entry;
   }
 }
 
@@ -595,8 +705,13 @@ export async function processVideoFeed(
       framesProcessed: res.framesProcessed ?? res.frames_processed ?? 0,
       detectionsCount: res.detectionsCount ?? (Array.isArray(res.detections) ? res.detections.length : 0),
     };
-  } catch {
-    const res = await fetch(`${AI_SERVICE_BASE_URL}/process-video`, {
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
+    const aiBase = getAiServiceBaseUrl();
+    const aiUrl = aiBase ? `${aiBase}/process-video` : `/process-video`;
+    const res = await fetch(aiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -613,3 +728,473 @@ export async function processVideoFeed(
     throw new ApiError(`Video processing microservice failed with HTTP ${res.status}`, res.status);
   }
 }
+
+export interface VideoUploadRecord {
+  id: string;
+  originalFilename: string;
+  storageKey: string;
+  storageProvider: string;
+  mimeType: string;
+  fileSize: number;
+  status: "UPLOADING" | "UPLOADED" | "PROCESSING" | "COMPLETED" | "FAILED" | string;
+  cameraId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  failureReason?: string | null;
+  sha256Hash?: string | null;
+  framesProcessed?: number | null;
+  detectionsCount?: number | null;
+  processingDurationSec?: number | null;
+}
+
+export interface VideoUploadPage {
+  content: VideoUploadRecord[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+
+/**
+ * Uploads a real CCTV video file to the persistent backend storage pipeline.
+ * Uses XMLHttpRequest to provide real, measured byte transfer progress.
+ */
+export function uploadVideoToStorage(
+  file: File,
+  cameraId?: string,
+  onProgress?: (percent: number, loaded: number, total: number) => void
+): Promise<VideoUploadRecord> {
+  return new Promise((resolve, reject) => {
+    if (!file || file.size === 0) {
+      return reject(new ApiError("Selected video file is empty (0 bytes).", 400));
+    }
+    const maxBytes = 500 * 1024 * 1024; // 500MB
+    if (file.size > maxBytes) {
+      return reject(
+        new ApiError(
+          `File size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the maximum allowed 500 MB limit.`,
+          413
+        )
+      );
+    }
+
+    const baseUrl = getApiBaseUrl();
+    const xhr = new XMLHttpRequest();
+    const url = normalizeApiPath("/videos/upload", baseUrl);
+    xhr.open("POST", url, true);
+
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+          onProgress(percent, event.loaded, event.total);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const parsed = JSON.parse(xhr.responseText) as VideoUploadRecord;
+          resolve(parsed);
+        } catch {
+          reject(new ApiError("Invalid JSON received from storage backend.", 500));
+        }
+      } else {
+        try {
+          const errData = JSON.parse(xhr.responseText);
+          reject(new ApiError(errData.message || `Upload failed with HTTP ${xhr.status}`, xhr.status));
+        } catch {
+          reject(new ApiError(`Upload failed with HTTP ${xhr.status}: ${xhr.statusText}`, xhr.status));
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new ApiError(`Network error: Unable to connect to backend upload service at ${url}`, 0));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new ApiError("Upload request timed out.", 408));
+    };
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (cameraId && cameraId.trim().length > 0) {
+      formData.append("camera_id", cameraId.trim());
+    }
+
+    xhr.send(formData);
+  });
+}
+
+/**
+ * Retrieves paginated upload records from the persistent backend database.
+ */
+export async function getVideoUploads(
+  page: number = 0,
+  size: number = 10,
+  status?: string,
+  cameraId?: string
+): Promise<VideoUploadPage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+  if (status && status.trim().length > 0) {
+    params.set("status", status.trim().toUpperCase());
+  }
+  if (cameraId && cameraId.trim().length > 0) {
+    params.set("camera_id", cameraId.trim());
+  }
+
+  return apiFetch<VideoUploadPage>(`/api/videos?${params.toString()}`);
+}
+
+/**
+ * Retrieves metadata for a specific uploaded video.
+ */
+export async function getVideoUpload(id: string): Promise<VideoUploadRecord> {
+  return apiFetch<VideoUploadRecord>(`/api/videos/${encodeURIComponent(id)}`);
+}
+
+/**
+ * Deletes an uploaded video and its associated storage file.
+ */
+export async function deleteVideoUpload(id: string): Promise<void> {
+  await apiFetch<void>(`/api/videos/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export interface ProcessVideoUploadResponse {
+  video_upload_id: string;
+  status: string;
+  job_id: string;
+  camera_id: string;
+  message: string;
+}
+
+export interface DetectionRecord {
+  id: number;
+  cameraId: string;
+  cameraName: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  direction: string;
+  speedKmh?: number | null;
+  vehicleClass: string;
+  detectionConfidence: number;
+  plateTextRaw?: string | null;
+  plateTextNormalized?: string | null;
+  plateConfidence?: number | null;
+  reidConfidence?: number | null;
+  imagePath?: string | null;
+  trackId?: number | null;
+  frameNumber?: number | null;
+  reidEmbedding?: string | null;
+  videoUploadId?: string | null;
+  bbox?: string | null;
+}
+
+export interface DetectionPage {
+  content: DetectionRecord[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+
+/**
+ * Triggers the real AI video inference pipeline on a previously uploaded video.
+ */
+export async function processVideoUpload(
+  id: string,
+  options?: { enableDehaze?: boolean; frameStride?: number }
+): Promise<ProcessVideoUploadResponse> {
+  return apiFetch<ProcessVideoUploadResponse>(`/api/videos/${encodeURIComponent(id)}/process`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      enable_dehaze: options?.enableDehaze ?? false,
+      frame_stride: options?.frameStride ?? 5,
+    }),
+  });
+}
+
+/**
+ * Retrieves paginated real detection records persisted for a specific video upload.
+ */
+export async function getVideoDetections(
+  id: string,
+  page: number = 0,
+  size: number = 20
+): Promise<DetectionPage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+  return apiFetch<DetectionPage>(`/api/videos/${encodeURIComponent(id)}/detections?${params.toString()}`);
+}
+
+// ============================================================================
+// Phase A5: Global Vehicle Identity, Trajectory & Quality Types & APIs
+// ============================================================================
+
+export interface GlobalIdentityDto {
+  id: string;
+  label: string;
+  primaryPlate: string | null;
+  plateConfidence: number | null;
+  vehicleClass: string | null;
+  color: string | null;
+  make: string | null;
+  model: string | null;
+  reviewStatus: string;
+  reviewNotes: string | null;
+  firstSeenTimestamp: string | null;
+  lastSeenTimestamp: string | null;
+  detectionCount: number;
+  reidModelName: string | null;
+  reidModelVersion: string | null;
+  reidDimension: number | null;
+}
+
+export interface GlobalIdentityPage {
+  content: GlobalIdentityDto[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+
+export interface ObservationProvenanceDto {
+  associationId: string | null;
+  associationDecision: string;
+  associationReviewStatus: string;
+  reidScore: number | null;
+  plateScore: number | null;
+  isSeedObservation: boolean;
+}
+
+export interface TrajectoryObservationDto {
+  detectionId: number;
+  globalIdentityId: string;
+  cameraId: string;
+  cameraName: string;
+  timestamp: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  hasCoordinates: boolean;
+  direction: string | null;
+  speedKmh: number | null;
+  vehicleClass: string | null;
+  detectionConfidence: number | null;
+  plateText: string | null;
+  plateConfidence: number | null;
+  reidConfidence: number | null;
+  imagePath: string | null;
+  trackId: number | null;
+  frameNumber: number | null;
+  provenance: ObservationProvenanceDto | null;
+}
+
+export interface TrajectoryTransitionDto {
+  fromDetectionId: number;
+  toDetectionId: number;
+  fromCameraId: string;
+  toCameraId: string;
+  fromTimestamp: string | null;
+  toTimestamp: string | null;
+  deltaSeconds: number | null;
+  distanceKm: number | null;
+  distanceMethod: string;
+  connectivity: "VERIFIED_ROAD_EDGE" | "UNVERIFIED_GEODESIC" | "SAME_CAMERA" | "UNKNOWN" | string;
+  isVerifiedTopology: boolean;
+  apparentSpeedKmh: number | null;
+  status: "FEASIBLE" | "IMPOSSIBLE" | "FEASIBILITY_UNKNOWN" | string;
+  reason: string;
+}
+
+export interface TrajectorySegmentDto {
+  segmentIndex: number;
+  segmentType: "VERIFIED_ROAD_CONNECTED_PATH" | "PLAUSIBLE_CHRONOLOGICAL_SEQUENCE" | string;
+  isFullyVerifiedRoadRoute: boolean;
+  observationCount: number;
+  startObservationId: number;
+  endObservationId: number;
+  startTime: string | null;
+  endTime: string | null;
+  durationSeconds: number | null;
+  totalDistanceKm: number | null;
+  observations: TrajectoryObservationDto[];
+  breakReason: string | null;
+}
+
+export interface GlobalTrajectoryDto {
+  globalIdentityId: string;
+  label: string;
+  primaryPlate: string | null;
+  vehicleClass: string | null;
+  reviewStatus: string;
+  totalObservations: number;
+  confirmedObservations: number;
+  excludedObservations: number;
+  segmentCount: number;
+  hasImpossibleTransitions: boolean;
+  hasUnknownFeasibility: boolean;
+  totalFeasibleDistanceKm: number | null;
+  totalDurationSeconds: number | null;
+  firstSeenTimestamp: string | null;
+  lastSeenTimestamp: string | null;
+  observations: TrajectoryObservationDto[];
+  transitions: TrajectoryTransitionDto[];
+  segments: TrajectorySegmentDto[];
+}
+
+export interface TrajectoryQualityCountsDto {
+  totalObservations: number;
+  confirmedObservations: number;
+  uncertainObservations: number;
+  excludedObservations: number;
+  distinctCameraCount: number;
+  totalTransitions: number;
+  feasibleTransitions: number;
+  impossibleTransitions: number;
+  unknownFeasibilityTransitions: number;
+  verifiedRoadTransitions: number;
+  unverifiedGeodesicTransitions: number;
+  sameCameraTransitions: number;
+}
+
+export interface IdentityQualityDimensionDto {
+  status: "CONFIRMED" | "UNCONFIRMED" | "HAS_EXCLUSIONS" | "CONFLICTED" | "INSUFFICIENT_DATA" | string;
+  confirmedCount: number;
+  excludedCount: number;
+  reviewStatusesSeen: string[];
+  summary: string;
+}
+
+export interface DetectionQualityDimensionDto {
+  status: "HIGH" | "ACCEPTABLE" | "LOW" | "INSUFFICIENT_DATA" | string;
+  minConfidence: number | null;
+  avgConfidence: number | null;
+  maxConfidence: number | null;
+  lowConfidenceCount: number;
+  summary: string;
+}
+
+export interface PlateQualityDimensionDto {
+  status: "CONSISTENT" | "CONTRADICTORY" | "SINGLE_READING" | "NO_READINGS" | string;
+  platesSeen: string[];
+  minPlateConfidence: number | null;
+  avgPlateConfidence: number | null;
+  summary: string;
+}
+
+export interface ReidQualityDimensionDto {
+  status: "HIGH_SIMILARITY" | "MODERATE_SIMILARITY" | "LOW_SIMILARITY" | "MISSING_EVIDENCE" | string;
+  isAvailable: boolean;
+  minScore: number | null;
+  avgScore: number | null;
+  maxScore: number | null;
+  modelName: string | null;
+  summary: string;
+}
+
+export interface SpatialTemporalQualityDimensionDto {
+  status: "VERIFIED_ROAD_NETWORK" | "PLAUSIBLE_GEODESIC" | "CONTAINS_IMPOSSIBLE_TRANSITIONS" | "FEASIBILITY_UNKNOWN" | "SINGLE_POINT_OR_SAME_CAMERA" | "EMPTY" | string;
+  distinctCameras: number;
+  verifiedRoadEdges: number;
+  unverifiedGeodesics: number;
+  sameCameraTransitions: number;
+  impossibleTransitions: number;
+  unknownTransitions: number;
+  summary: string;
+}
+
+export interface CompletenessQualityDimensionDto {
+  status: "COMPLETE" | "PARTIAL" | "INSUFFICIENT" | string;
+  missingTimestampsCount: number;
+  missingCoordinatesCount: number;
+  missingReidCount: number;
+  missingPlateCount: number;
+  summary: string;
+}
+
+export interface TrajectoryDimensionsDto {
+  identityMembership: IdentityQualityDimensionDto;
+  detectionConfidence: DetectionQualityDimensionDto;
+  ocrAndPlateConsistency: PlateQualityDimensionDto;
+  reidSimilarity: ReidQualityDimensionDto;
+  spatialTemporalFeasibility: SpatialTemporalQualityDimensionDto;
+  evidenceCompleteness: CompletenessQualityDimensionDto;
+}
+
+export interface TrajectoryQualityDto {
+  globalIdentityId: string;
+  label: string;
+  overallQuality: "HIGH_CONFIDENCE" | "MEDIUM_CONFIDENCE" | "LOW_CONFIDENCE" | "INSUFFICIENT_EVIDENCE" | string;
+  summary: string;
+  isCrossCameraConfirmed: boolean;
+  hasImpossibleTransitions: boolean;
+  hasContradictions: boolean;
+  counts: TrajectoryQualityCountsDto;
+  dimensions: TrajectoryDimensionsDto;
+  supportingEvidence: string[];
+  missingEvidence: string[];
+  warningsAndContradictions: string[];
+}
+
+/**
+ * Reconstructs the chronologically ordered, geographically grounded multi-camera trajectory.
+ */
+export async function getGlobalTrajectory(
+  identityId: string,
+  options?: { signal?: AbortSignal }
+): Promise<GlobalTrajectoryDto> {
+  return apiFetch<GlobalTrajectoryDto>(`/identities/${encodeURIComponent(identityId)}/trajectory`, {
+    signal: options?.signal,
+  });
+}
+
+/**
+ * Assesses the multidimensional evidence reliability and quality of a vehicle trajectory.
+ */
+export async function getGlobalTrajectoryQuality(
+  identityId: string,
+  options?: { signal?: AbortSignal }
+): Promise<TrajectoryQualityDto> {
+  return apiFetch<TrajectoryQualityDto>(`/identities/${encodeURIComponent(identityId)}/trajectory/quality`, {
+    signal: options?.signal,
+  });
+}
+
+/**
+ * Retrieves paginated list of global vehicle identities.
+ */
+export async function listGlobalIdentities(
+  page: number = 0,
+  size: number = 20,
+  options?: { signal?: AbortSignal }
+): Promise<GlobalIdentityPage> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  return apiFetch<GlobalIdentityPage>(`/identities?${params.toString()}`, {
+    signal: options?.signal,
+  });
+}
+
+/**
+ * Searches for a global vehicle identity by UUID, label, or primary plate.
+ */
+export async function searchGlobalIdentity(
+  query: string,
+  options?: { signal?: AbortSignal }
+): Promise<GlobalIdentityDto> {
+  const params = new URLSearchParams({ query });
+  return apiFetch<GlobalIdentityDto>(`/identities/search?${params.toString()}`, {
+    signal: options?.signal,
+  });
+}
+

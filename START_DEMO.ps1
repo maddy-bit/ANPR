@@ -24,6 +24,24 @@ Write-Host ""
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $SCRIPT_DIR
 
+# Load .env variables into environment if present
+$envFile = Join-Path $SCRIPT_DIR ".env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith('#')) {
+            $parts = $line.Split('=', 2)
+            if ($parts.Length -eq 2) {
+                $k = $parts[0].Trim()
+                $v = $parts[1].Trim()
+                if ($k -and -not [string]::IsNullOrEmpty($v)) {
+                    [System.Environment]::SetEnvironmentVariable($k, $v)
+                }
+            }
+        }
+    }
+}
+
 # --- 1. Dependency & Environment Checks ---
 Write-Host "[1/5] Checking environment dependencies..." -ForegroundColor Yellow
 
@@ -140,9 +158,9 @@ if ($backendAlreadyUp) {
     Write-Host "  -> Launching Spring Boot Backend on http://127.0.0.1:8080..." -ForegroundColor White
     $backendLogOut = Join-Path $SCRIPT_DIR "data\backend_out.log"
     $backendLogErr = Join-Path $SCRIPT_DIR "data\backend_err.log"
-    $env:CACHE_TYPE = "none"
-    $env:AI_SERVICE_URL = "http://localhost:8000"
-    $env:INGEST_PASSWORD = "local-dev-ingest-only-not-for-prod"
+    if (-not $env:CACHE_TYPE) { $env:CACHE_TYPE = "none" }
+    if (-not $env:AI_SERVICE_URL) { $env:AI_SERVICE_URL = "http://localhost:8000" }
+    if (-not $env:INGEST_PASSWORD) { $env:INGEST_PASSWORD = "local-dev-ingest-only-not-for-prod" }
     $mvnArgs = "spring-boot:run -f backend/pom.xml"
     $backendProcess = Start-Process -FilePath $MAVEN_EXE -ArgumentList $mvnArgs -WorkingDirectory $SCRIPT_DIR -PassThru -RedirectStandardOutput $backendLogOut -RedirectStandardError $backendLogErr -WindowStyle Hidden
     $pidsToTrack["SpringBoot"] = $backendProcess.Id

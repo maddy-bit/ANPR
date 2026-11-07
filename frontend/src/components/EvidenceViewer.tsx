@@ -21,7 +21,7 @@ interface EvidenceViewerProps {
 
 export function EvidenceViewer({
   point,
-  targetPlate = "ET3633P",
+  targetPlate = "",
   vehicleType = "Sedan",
   vehicleColor = "Silver",
   customVideoUrls = {},

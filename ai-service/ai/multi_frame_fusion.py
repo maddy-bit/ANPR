@@ -137,6 +137,11 @@ class MultiFrameFusionService:
         t_end = max(timestamps) if timestamps else 0.0
         best_crop = crop_paths[0] if crop_paths else None
 
+        first_reid = next((e for e in reid_embeddings if e is not None), None)
+        model_name = getattr(first_reid, "model_name", None) if first_reid else None
+        model_ver = getattr(first_reid, "model_version", None) if first_reid else None
+        dim = len(mean_reid) if mean_reid else None
+
         return VehicleObservation(
             camera_id=camera_id,
             track_id=track_id,
@@ -147,6 +152,9 @@ class MultiFrameFusionService:
             color=dominant_color,
             vehicle_type=dominant_type,
             reid_embedding=mean_reid,
+            reid_model_name=model_name,
+            reid_model_version=model_ver,
+            reid_dimension=dim,
             crop_path=best_crop,
             plate_history=plate_observations,
         )

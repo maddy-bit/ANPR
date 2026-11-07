@@ -22,7 +22,8 @@ import java.time.Instant;
 @Entity
 @Table(name = "vehicle_detections", indexes = {
         @Index(name = "idx_detection_camera_time", columnList = "camera_id,timestamp"),
-        @Index(name = "idx_detection_vehicle_time", columnList = "vehicle_id,timestamp")
+        @Index(name = "idx_detection_vehicle_time", columnList = "vehicle_id,timestamp"),
+        @Index(name = "idx_detection_video_upload", columnList = "video_upload_id")
 })
 public class VehicleDetection {
 
@@ -36,6 +37,14 @@ public class VehicleDetection {
     @ManyToOne(fetch = FetchType.LAZY, optional = true)
     @JoinColumn(name = "vehicle_id")
     private Vehicle vehicle;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "video_upload_id")
+    private VideoUpload videoUpload;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "global_identity_id")
+    private GlobalIdentity globalIdentity;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "camera_id")
@@ -70,6 +79,15 @@ public class VehicleDetection {
     @Column(columnDefinition = "TEXT")
     private String reidEmbedding;
 
+    @Column(name = "reid_model_name", length = 100)
+    private String reidModelName;
+
+    @Column(name = "reid_model_version", length = 50)
+    private String reidModelVersion;
+
+    @Column(name = "reid_dimension")
+    private Integer reidDimension;
+
     /** Path to the saved evidence frame for this detection. */
     private String imagePath;
 
@@ -77,6 +95,10 @@ public class VehicleDetection {
     private Integer trackId;
 
     private Integer frameNumber;
+
+    /** Bounding box in frame coordinates "[x1, y1, x2, y2]". */
+    @Column(length = 100)
+    private String bbox;
 
     protected VehicleDetection() {
         // JPA
@@ -92,12 +114,24 @@ public class VehicleDetection {
         return id;
     }
 
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     public Vehicle getVehicle() {
         return vehicle;
     }
 
     public void setVehicle(Vehicle vehicle) {
         this.vehicle = vehicle;
+    }
+
+    public VideoUpload getVideoUpload() {
+        return videoUpload;
+    }
+
+    public void setVideoUpload(VideoUpload videoUpload) {
+        this.videoUpload = videoUpload;
     }
 
     public Camera getCamera() {
@@ -218,5 +252,45 @@ public class VehicleDetection {
 
     public void setFrameNumber(Integer frameNumber) {
         this.frameNumber = frameNumber;
+    }
+
+    public String getBbox() {
+        return bbox;
+    }
+
+    public void setBbox(String bbox) {
+        this.bbox = bbox;
+    }
+
+    public String getReidModelName() {
+        return reidModelName;
+    }
+
+    public void setReidModelName(String reidModelName) {
+        this.reidModelName = reidModelName;
+    }
+
+    public String getReidModelVersion() {
+        return reidModelVersion;
+    }
+
+    public void setReidModelVersion(String reidModelVersion) {
+        this.reidModelVersion = reidModelVersion;
+    }
+
+    public Integer getReidDimension() {
+        return reidDimension;
+    }
+
+    public void setReidDimension(Integer reidDimension) {
+        this.reidDimension = reidDimension;
+    }
+
+    public GlobalIdentity getGlobalIdentity() {
+        return globalIdentity;
+    }
+
+    public void setGlobalIdentity(GlobalIdentity globalIdentity) {
+        this.globalIdentity = globalIdentity;
     }
 }

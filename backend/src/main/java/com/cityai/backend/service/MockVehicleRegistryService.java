@@ -11,13 +11,16 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
  * Local mock vehicle registry backed by data/vehicles.json - NOT a real
- * government/RTO integration. See VehicleRegistryService for the swap point.
+ * government/RTO integration. Disabled by default in production runtime.
+ * Only activated when explicitly enabled via app.mock-registry.enabled=true.
  */
 @Service
+@ConditionalOnProperty(name = "app.mock-registry.enabled", havingValue = "true")
 public class MockVehicleRegistryService implements VehicleRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(MockVehicleRegistryService.class);

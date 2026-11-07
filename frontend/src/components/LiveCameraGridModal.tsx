@@ -162,6 +162,13 @@ export function LiveCameraGridModal({
 
             {/* Camera Grid Matrix */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
+              {filteredCameras.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-16 text-center font-mono">
+                  <span className="text-4xl mb-3">📡</span>
+                  <p className="text-sm font-bold text-slate-800 uppercase tracking-wide">No Camera Checkpoints Configured</p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md">No camera nodes matching the selected filter are present in the database. Ingest footage or register cameras to populate the matrix.</p>
+                </div>
+              ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredCameras.map((cam) => {
                   const hasArchive = AVAILABLE_ARCHIVES.has(cam.id);
@@ -238,6 +245,7 @@ export function LiveCameraGridModal({
                   );
                 })}
               </div>
+              )}
             </div>
 
             {/* Expanded Camera Modal View */}

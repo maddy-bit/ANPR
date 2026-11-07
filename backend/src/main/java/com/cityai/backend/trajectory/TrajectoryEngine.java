@@ -30,7 +30,6 @@ public class TrajectoryEngine {
 
     private final VehicleRepository vehicleRepository;
     private final VehicleDetectionRepository detectionRepository;
-    private final VehicleRegistryService registryService;
     private final TrajectoryScoringService scoringService;
 
     public TrajectoryEngine(
@@ -40,8 +39,14 @@ public class TrajectoryEngine {
             TrajectoryScoringService scoringService) {
         this.vehicleRepository = vehicleRepository;
         this.detectionRepository = detectionRepository;
-        this.registryService = registryService;
         this.scoringService = scoringService;
+    }
+
+    public TrajectoryEngine(
+            VehicleRepository vehicleRepository,
+            VehicleDetectionRepository detectionRepository,
+            TrajectoryScoringService scoringService) {
+        this(vehicleRepository, detectionRepository, null, scoringService);
     }
 
     public record CameraVisit(
@@ -106,15 +111,7 @@ public class TrajectoryEngine {
     @Transactional
     public TrajectoryResult reconstruct(String normalizedPlate) {
         Vehicle vehicle = vehicleRepository.findByPlate(normalizedPlate)
-                .orElseGet(() -> {
-                    var reg = registryService.lookup(normalizedPlate);
-                    if (reg.isPresent()) {
-                        var r = reg.get();
-                        Vehicle v = new Vehicle(r.plate(), r.vehicleType(), r.color(), r.make(), r.model());
-                        return vehicleRepository.save(v);
-                    }
-                    throw new java.util.NoSuchElementException("No vehicle found for plate: " + normalizedPlate);
-                });
+                .orElseThrow(() -> new java.util.NoSuchElementException("No vehicle found for plate: " + normalizedPlate));
 
         List<VehicleDetection> detections =
                 detectionRepository.findByVehicle_PlateOrderByTimestampAsc(normalizedPlate);

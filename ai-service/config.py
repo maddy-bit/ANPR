@@ -25,6 +25,9 @@ class ModelPaths:
     plate_detector: Path = _MODELS_DIR / "plate_detector_yolov8n.pt"
     # Pretrained fallback (downloaded from HF on first use if fine-tuned not present)
     plate_detector_pretrained_id: str = "keremberke/yolov8n-license-plate-detection"
+    # Phase A5: FastReID ResNet-50-IBN vehicle-specific metric learning model
+    reid_model: Path = _MODELS_DIR / "veri_sbs_R50-ibn.pth"
+    reid_expected_sha256: str = "57FB9C17D88911EA64390BF5427F43511435E7F88F6EED9DBC969D4B611E53CD"
 
 
 @dataclass
@@ -85,12 +88,14 @@ class PreprocessingConfig:
 
 @dataclass
 class ReIDConfig:
-    # Embedding dimensions: 2048 (ResNet50) + 96 (color hist)
-    embedding_dim: int = 2144
+    # Phase A5: FastReID ResNet-50-IBN 2048-dim embedding
+    model_name: str = "fastreid_veri_sbs_r50_ibn"
+    model_version: str = "veri-776-v1"
+    embedding_dim: int = 2048
     # Normalize inputs to ImageNet stats
     imagenet_mean: tuple[float, float, float] = (0.485, 0.456, 0.406)
     imagenet_std: tuple[float, float, float] = (0.229, 0.224, 0.225)
-    input_size: tuple[int, int] = (224, 224)
+    input_size: tuple[int, int] = (256, 256)
     use_gpu: bool = False
 
 
@@ -122,13 +127,13 @@ class IdentityScoringConfig:
 class TopologyConfig:
     cameras_file: Path = _DATA_DIR / "cameras.json"
     # Assumed maximum vehicle speed (km/h) for minimum travel time
-    max_vehicle_speed_kmh: float = 80.0
+    max_vehicle_speed_kmh: float = 100.0
     # Assumed minimum vehicle speed (km/h) for maximum feasible time
     min_vehicle_speed_kmh: float = 5.0
     # Hard cap: vehicle cannot reappear after this many seconds at any camera
     max_wait_seconds: float = 7200.0  # 2 hours
     # Vehicles cannot teleport: minimum time between any two camera sightings
-    absolute_min_seconds: float = 10.0
+    absolute_min_seconds: float = 0.1
 
 
 @dataclass
@@ -171,6 +176,10 @@ class PipelineConfig:
     @property
     def MAX_FEASIBLE_SPEED_KMH(self) -> float:
         return float(self.topology.max_vehicle_speed_kmh)
+
+    @property
+    def MIN_FEASIBLE_SPEED_KMH(self) -> float:
+        return float(self.topology.min_vehicle_speed_kmh)
 
     @property
     def WEIGHT_PLATE_MATCH(self) -> float:

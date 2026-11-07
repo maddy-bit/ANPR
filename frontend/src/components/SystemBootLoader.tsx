@@ -11,24 +11,24 @@ interface SystemBootLoaderProps {
 }
 
 const CAMERAS_BOOT = [
-  { id: "CAM-01", name: "Shivajinagar Chowk", angle: 45, dist: 0.35, status: "ONLINE" },
-  { id: "CAM-02", name: "Sancheti Hospital", angle: 75, dist: 0.55, status: "ONLINE" },
-  { id: "CAM-03", name: "JM Road - Deccan", angle: 110, dist: 0.42, status: "TARGET_LOCK" },
-  { id: "CAM-04", name: "FC Road - Goodluck", angle: 140, dist: 0.65, status: "ONLINE" },
-  { id: "CAM-05", name: "Alka Talkies", angle: 180, dist: 0.48, status: "ONLINE" },
-  { id: "CAM-06", name: "Swargate Bus Station", angle: 215, dist: 0.72, status: "ONLINE" },
-  { id: "CAM-07", name: "Kothrud Depot", angle: 250, dist: 0.85, status: "ONLINE" },
-  { id: "CAM-08", name: "Paud Road Flyover", angle: 275, dist: 0.62, status: "ONLINE" },
-  { id: "CAM-09", name: "University Circle", angle: 310, dist: 0.52, status: "ONLINE" },
-  { id: "CAM-10", name: "Senapati Bapat Rd", angle: 335, dist: 0.4, status: "ONLINE" },
-  { id: "CAM-11", name: "Aundh - ITI Road", angle: 15, dist: 0.78, status: "ONLINE" },
-  { id: "CAM-12", name: "Bremen Chowk", angle: 355, dist: 0.88, status: "ONLINE" },
+  { id: "CAM-01", name: "Shivajinagar Chowk", angle: 45, dist: 0.35, status: "CONFIGURED" },
+  { id: "CAM-02", name: "Sancheti Hospital", angle: 75, dist: 0.55, status: "CONFIGURED" },
+  { id: "CAM-03", name: "JM Road - Deccan", angle: 110, dist: 0.42, status: "CONFIGURED" },
+  { id: "CAM-04", name: "FC Road - Goodluck", angle: 140, dist: 0.65, status: "CONFIGURED" },
+  { id: "CAM-05", name: "Alka Talkies", angle: 180, dist: 0.48, status: "CONFIGURED" },
+  { id: "CAM-06", name: "Swargate Bus Station", angle: 215, dist: 0.72, status: "CONFIGURED" },
+  { id: "CAM-07", name: "Kothrud Depot", angle: 250, dist: 0.85, status: "CONFIGURED" },
+  { id: "CAM-08", name: "Paud Road Flyover", angle: 275, dist: 0.62, status: "CONFIGURED" },
+  { id: "CAM-09", name: "University Circle", angle: 310, dist: 0.52, status: "CONFIGURED" },
+  { id: "CAM-10", name: "Senapati Bapat Rd", angle: 335, dist: 0.4, status: "CONFIGURED" },
+  { id: "CAM-11", name: "Aundh - ITI Road", angle: 15, dist: 0.78, status: "CONFIGURED" },
+  { id: "CAM-12", name: "Bremen Chowk", angle: 355, dist: 0.88, status: "CONFIGURED" },
 ];
 
 const CYBER_LOGS = [
   { text: "INITIALIZING CYBERNETIC NEURAL CORE // MATRIX BUS ARMED", pct: 15, hex: "0x7F00A1" },
-  { text: "ACTIVATING PUNE 12-NODE 4K MESH SENSORS & LIDAR TELEMETRY", pct: 35, hex: "0x8B32C4" },
-  { text: "INJECTING YOLOV8x TENSOR ENGINE // BOUNDING CLASSIFIERS READY", pct: 55, hex: "0x91F05D" },
+  { text: "INITIALIZING SURVEILLANCE MESH SENSORS & TELEMETRY", pct: 35, hex: "0x8B32C4" },
+  { text: "INITIALIZING YOLOV8s VEHICLE DETECTOR & BYTETRACK", pct: 55, hex: "0x91F05D" },
   { text: "CALIBRATING HSRP HIGH-RESOLUTION OCR RECOGNITION MATRIX", pct: 75, hex: "0x2A77E9" },
   { text: "SPATIO-TEMPORAL 3D TRAJECTORY GRAPH SYNCHRONIZED", pct: 90, hex: "0xFA110B" },
   { text: "CYBER SURVEILLANCE MATRIX ARMED // SYSTEM ACTIVE", pct: 100, hex: "0x059669" },

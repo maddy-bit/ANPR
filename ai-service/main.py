@@ -22,9 +22,11 @@ import time
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
+import cv2
 from schemas import (
     ProcessVideoRequest,
     ProcessVideoResponse,
+    ProcessVideoUploadRequest,
     MultiCameraFeedRequest,
     MultiCameraProcessingResult,
     VehicleJourney,
@@ -71,6 +73,11 @@ def sync_detections_to_backend(events: list[Any], backend_url: Optional[str] = N
             "imagePath": d.image_path,
             "reidConfidence": getattr(d, "reid_confidence", None),
             "reidEmbedding": getattr(d, "reid_embedding", None),
+            "videoUploadId": getattr(d, "video_upload_id", None),
+            "bbox": getattr(d, "bbox", None),
+            "reidModelName": getattr(d, "reid_model_name", None),
+            "reidModelVersion": getattr(d, "reid_model_version", None),
+            "reidDimension": getattr(d, "reid_dimension", None),
         })
 
     try:
@@ -98,6 +105,7 @@ def _run_video_job(
     start_time_iso: str,
     frame_stride: int,
     enable_dehaze: bool,
+    video_upload_id: Optional[str] = None,
 ):
     from services.video_pipeline import CameraAgent
 
@@ -137,6 +145,7 @@ def _run_video_job(
             frame_stride=frame_stride,
             enable_dehaze=enable_dehaze,
             progress_callback=on_progress,
+            video_upload_id=video_upload_id,
         )
 
         synced_count = sync_detections_to_backend(detections)
@@ -179,6 +188,25 @@ def _run_video_job(
                 },
             )
         )
+        if video_upload_id:
+            try:
+                import requests
+                backend_url = os.environ.get("BACKEND_URL", "http://localhost:8080")
+                ingest_user = os.environ.get("INGEST_USERNAME", "ingest")
+                ingest_pass = os.environ.get("INGEST_PASSWORD", "local-dev-ingest-only-not-for-prod")
+                requests.post(
+                    f"{backend_url}/api/videos/{video_upload_id}/complete",
+                    json={
+                        "frames_processed": frames_processed,
+                        "detections_count": len(detections),
+                        "duration_seconds": round(elapsed, 2),
+                        "error": None,
+                    },
+                    auth=(ingest_user, ingest_pass),
+                    timeout=10,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to notify backend of video completion: {e}")
         logger.info(f"Video job {job_id} COMPLETED in {elapsed:.1f}s ({frames_processed} frames, {len(detections)} detections)")
     except Exception as exc:
         logger.error(f"Video job {job_id} FAILED: {exc}", exc_info=True)
@@ -199,6 +227,25 @@ def _run_video_job(
                 },
             )
         )
+        if video_upload_id:
+            try:
+                import requests
+                backend_url = os.environ.get("BACKEND_URL", "http://localhost:8080")
+                ingest_user = os.environ.get("INGEST_USERNAME", "ingest")
+                ingest_pass = os.environ.get("INGEST_PASSWORD", "local-dev-ingest-only-not-for-prod")
+                requests.post(
+                    f"{backend_url}/api/videos/{video_upload_id}/complete",
+                    json={
+                        "frames_processed": 0,
+                        "detections_count": 0,
+                        "duration_seconds": 0.0,
+                        "error": str(exc),
+                    },
+                    auth=(ingest_user, ingest_pass),
+                    timeout=10,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to notify backend of video failure: {e}")
     finally:
         _active_jobs.discard(job_id)
 
@@ -259,6 +306,61 @@ async def get_job_status(job_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     return status
 
+
+
+@app.post("/process-video-upload")
+async def process_video_upload_endpoint(
+    request: ProcessVideoUploadRequest,
+    background_tasks: BackgroundTasks,
+) -> Dict[str, Any]:
+    """Processes an already-uploaded video associated with an A3 video_upload_id."""
+    video_path = request.video_path
+    video_upload_id = request.video_upload_id
+
+    # Validate video can be opened
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unable to open video source: '{video_path}'. Ensure file exists or stream is accessible."
+        )
+    cap.release()
+
+    job_id = f"job-{uuid.uuid4().hex[:12]}"
+    _active_jobs.add(job_id)
+
+    await redis_service.set_job_status(
+        job_id,
+        status="QUEUED",
+        progress=0.0,
+        details={
+            "job_id": job_id,
+            "video_upload_id": video_upload_id,
+            "camera_id": request.camera_id,
+            "video_path": video_path,
+            "dcp_enabled": request.enable_dehaze,
+        },
+    )
+
+    background_tasks.add_task(
+        _run_video_job,
+        job_id,
+        video_path,
+        request.camera_id,
+        request.start_time,
+        request.frame_stride,
+        request.enable_dehaze,
+        video_upload_id,
+    )
+
+    return {
+        "job_id": job_id,
+        "video_upload_id": video_upload_id,
+        "status": "QUEUED",
+        "camera_id": request.camera_id,
+        "video_path": video_path,
+        "message": f"Inference pipeline initiated for video upload '{video_upload_id}'.",
+    }
 
 
 @app.post("/upload-video")

@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "manifest_version": "1.1.0",
+  "project": "SIH26127 Traffic Intelligence & Vehicle Investigation Platform",
+  "phase": "B",
+  "batch": "B1.1",
+  "updated_at_utc": "2026-11-05T02:20:00Z",
+  "random_seed": 42,
+  "evaluation_readiness": "INVALID_FOR_GENERALIZATION",
+  "generalization_evaluation_supported": false,
+  "critical_audit_verdict": "The local dataset CANNOT support Re-ID generalization evaluation or threshold calibration. All candidate cross-camera positive pairs are exact duplicate files or synthetic sprite copies across camera directories. Zero genuinely independent cross-camera observations exist. License plate OCR ground truth is available for only two scenes (N=2), which is statistically insufficient for performance claims.",
+  "minimum_evidence_requirements": {
+    "cross_camera_reid": [
+      "Distinct camera sensor installations (Camera_query != Camera_gallery) with documented physical coordinates and spatial-temporal parameters.",
+      "Genuinely independent photographic captures: non-identical cryptographic hashes (SHA-256(I_q) != SHA-256(I_g)) and non-trivial perceptual variation (different viewpoint angle, illumination, scale, or background).",
+      "Human-verified or external ground truth (e.g. synchronized GPS/RFID tag), not programmatic duplication or sprite copy-paste across video frames.",
+      "Non-empty true positive gallery targets for every probe query (no zero-denominator or impossible queries).",
+      "Representative negative gallery distractors reflecting real-world traffic scene clutter."
+    ],
+    "plate_detection": [
+      "Human-verified or certified ground-truth bounding boxes (heuristic pseudo-labels are insufficient for benchmark accuracy)."
+    ],
+    "plate_ocr": [
+      "Statistically sufficient sample size (minimum N >= 500 diverse plate scenes with alphanumeric ground truth across states, vehicle types, and degradation levels)."
+    ]
+  },
+  "reid_partition_strategy": {
+    "total_identities": 6,
+    "cross_camera_candidate_identities": ["VEH-01", "VEH-02", "VEH-03"],
+    "single_camera_identities": ["VEH-04", "VEH-05", "VEH-06"],
+    "validity_status": "INVALID_FOR_GENERALIZATION",
+    "validity_reason": "Zero independent cross-camera observations exist. VEH-01, VEH-02, and VEH-03 have exact duplicate images copied across cameras. VEH-04, VEH-05, and VEH-06 appear on only 1 camera each. Identity-disjoint partitioning does NOT eliminate duplicate-image leakage within an identity.",
+    "splits": {
+      "validation_calibration_split": {
+        "validity_status": "INVALID_FOR_CALIBRATION",
+        "validity_reason": "Contains exact byte duplicate crops copied across cameras (VEH-01 duplicated across CAM-01/03/07/11, VEH-02 duplicated across CAM-02/05). Tuning thresholds (confirmed_threshold=0.75, probable_threshold=0.50, reid_high_similarity=0.85) on cloned images overfits to byte-level artifacts and invalidates calibration.",
+        "identities": ["VEH-01", "VEH-02"],
+        "cameras": ["CAM-01", "CAM-02", "CAM-03", "CAM-05", "CAM-07", "CAM-11"],
+        "crop_count": 12,
+        "unique_sha256_count": 4,
+        "probe_queries": [
+          {
+            "query_id": "VAL_Q_01",
+            "identity": "VEH-01",
+            "file": "VEH-01_CAM-01_f75_t1.jpg",
+            "camera": "CAM-01",
+            "timestamp_frame": 75,
+            "track_id": 1,
+            "validity": "INVALID_DUPLICATE_POSITIVE_TARGETS",
+            "duplicate_matches_in_gallery": [
+              "VEH-01_CAM-03_f75_t1.jpg",
+              "VEH-01_CAM-07_f75_t1.jpg",
+              "VEH-01_CAM-11_f75_t1.jpg"
+            ],
+            "ground_truth_gallery_matches": [
+              "VEH-01_CAM-03_f75_t1.jpg",
+              "VEH-01_CAM-03_f80_t1.jpg",
+              "VEH-01_CAM-07_f75_t1.jpg",
+              "VEH-01_CAM-07_f80_t1.jpg",
+              "VEH-01_CAM-11_f75_t1.jpg",
+              "VEH-01_CAM-11_f80_t1.jpg"
+            ]
+          },
+          {
+            "query_id": "VAL_Q_02",
+            "identity": "VEH-01",
+            "file": "VEH-01_CAM-01_f80_t1.jpg",
+            "camera": "CAM-01",
+            "timestamp_frame": 80,
+            "track_id": 1,
+            "validity": "INVALID_DUPLICATE_POSITIVE_TARGETS",
+            "duplicate_matches_in_gallery": [
+              "VEH-01_CAM-03_f80_t1.jpg",
+              "VEH-01_CAM-07_f80_t1.jpg",
+              "VEH-01_CAM-11_f80_t1.jpg"
+            ],
+            "ground_truth_gallery_matches": [
+              "VEH-01_CAM-03_f75_t1.jpg",
+              "VEH-01_CAM-03_f80_t1.jpg",
+              "VEH-01_CAM-07_f75_t1.jpg",
+              "VEH-01_CAM-07_f80_t1.jpg",
+              "VEH-01_CAM-11_f75_t1.jpg",
+              "VEH-01_CAM-11_f80_t1.jpg"
+            ]
+          },
+          {
+            "query_id": "VAL_Q_03",
+            "identity": "VEH-02",
+            "file": "VEH-02_CAM-02_f80_t2.jpg",
+            "camera": "CAM-02",
+            "timestamp_frame": 80,
+            "track_id": 2,
+            "validity": "INVALID_DUPLICATE_POSITIVE_TARGETS",
+            "duplicate_matches_in_gallery": [
+              "VEH-02_CAM-05_f80_t2.jpg"
+            ],
+            "ground_truth_gallery_matches": [
+              "VEH-02_CAM-05_f80_t2.jpg",
+              "VEH-02_CAM-05_f85_t2.jpg"
+            ]
+          },
+          {
+            "query_id": "VAL_Q_04",
+            "identity": "VEH-02",
+            "file": "VEH-02_CAM-02_f85_t2.jpg",
+            "camera": "CAM-02",
+            "timestamp_frame": 85,
+            "track_id": 2,
+            "validity": "INVALID_DUPLICATE_POSITIVE_TARGETS",
+            "duplicate_matches_in_gallery": [
+              "VEH-02_CAM-05_f85_t2.jpg"
+            ],
+            "ground_truth_gallery_matches": [
+              "VEH-02_CAM-05_f80_t2.jpg",
+              "VEH-02_CAM-05_f85_t2.jpg"
+            ]
+          }
+        ],
+        "gallery_files": [
+          "VEH-01_CAM-03_f75_t1.jpg",
+          "VEH-01_CAM-03_f80_t1.jpg",
+          "VEH-01_CAM-07_f75_t1.jpg",
+          "VEH-01_CAM-07_f80_t1.jpg",
+          "VEH-01_CAM-11_f75_t1.jpg",
+          "VEH-01_CAM-11_f80_t1.jpg",
+          "VEH-02_CAM-05_f80_t2.jpg",
+          "VEH-02_CAM-05_f85_t2.jpg"
+        ]
+      },
+      "frozen_test_split": {
+        "validity_status": "INVALID_FOR_GENERALIZATION",
+        "validity_reason": "Held-out identity VEH-03 consists of only 2 unique images duplicated across CAM-04 and CAM-06. Probing CAM-04 f75 against CAM-06 f75 matches identical bytes (SHA-256 cdb6c8...). Zero independent cross-camera positive targets exist. This partition CANNOT support valid Re-ID generalization evaluation.",
+        "identities": ["VEH-03"],
+        "distractor_identities": ["VEH-04", "VEH-05", "VEH-06"],
+        "cameras": ["CAM-04", "CAM-06", "CAM-08", "CAM-09", "CAM-10"],
+        "crop_count": 35,
+        "unique_sha256_count": 33,
+        "probe_queries": [
+          {
+            "query_id": "TEST_Q_01",
+            "identity": "VEH-03",
+            "file": "VEH-03_CAM-04_f75_t4.jpg",
+            "camera": "CAM-04",
+            "timestamp_frame": 75,
+            "track_id": 4,
+            "validity": "INVALID_DUPLICATE_POSITIVE_TARGETS",
+            "duplicate_matches_in_gallery": [
+              "VEH-03_CAM-06_f75_t4.jpg"
+            ],
+            "ground_truth_gallery_matches": [
+              "VEH-03_CAM-06_f75_t4.jpg",
+              "VEH-03_CAM-06_f80_t4.jpg"
+            ]
+          },
+          {
+            "query_id": "TEST_Q_02",
+            "identity": "VEH-03",
+            "file": "VEH-03_CAM-04_f80_t4.jpg",
+            "camera": "CAM-04",
+            "timestamp_frame": 80,
+            "track_id": 4,
+            "validity": "INVALID_DUPLICATE_POSITIVE_TARGETS",
+            "duplicate_matches_in_gallery": [
+              "VEH-03_CAM-06_f80_t4.jpg"
+            ],
+            "ground_truth_gallery_matches": [
+              "VEH-03_CAM-06_f75_t4.jpg",
+              "VEH-03_CAM-06_f80_t4.jpg"
+            ]
+          }
+        ],
+        "gallery_files": [
+          "VEH-03_CAM-06_f75_t4.jpg",
+          "VEH-03_CAM-06_f80_t4.jpg"
+        ],
+        "gallery_distractors": [
+          "VEH-04_CAM-08_f40_t3.jpg",
+          "VEH-04_CAM-08_f45_t3.jpg",
+          "VEH-04_CAM-08_f50_t3.jpg",
+          "VEH-04_CAM-08_f55_t3.jpg",
+          "VEH-04_CAM-08_f60_t3.jpg",
+          "VEH-04_CAM-08_f65_t3.jpg",
+          "VEH-04_CAM-08_f70_t3.jpg",
+          "VEH-04_CAM-08_f75_t3.jpg",
+          "VEH-04_CAM-08_f80_t3.jpg",
+          "VEH-04_CAM-08_f85_t3.jpg",
+          "VEH-04_CAM-08_f90_t3.jpg",
+          "VEH-04_CAM-08_f95_t3.jpg",
+          "VEH-04_CAM-08_f100_t3.jpg",
+          "VEH-04_CAM-08_f105_t3.jpg",
+          "VEH-05_CAM-09_f35_t1.jpg",
+          "VEH-05_CAM-09_f40_t1.jpg",
+          "VEH-05_CAM-09_f45_t1.jpg",
+          "VEH-05_CAM-09_f50_t1.jpg",
+          "VEH-05_CAM-09_f55_t1.jpg",
+          "VEH-05_CAM-09_f60_t1.jpg",
+          "VEH-05_CAM-09_f65_t1.jpg",
+          "VEH-05_CAM-09_f70_t1.jpg",
+          "VEH-05_CAM-09_f75_t1.jpg",
+          "VEH-05_CAM-09_f80_t1.jpg",
+          "VEH-05_CAM-09_f85_t1.jpg",
+          "VEH-05_CAM-09_f90_t1.jpg",
+          "VEH-05_CAM-09_f95_t1.jpg",
+          "VEH-05_CAM-09_f100_t1.jpg",
+          "VEH-05_CAM-09_f105_t1.jpg",
+          "VEH-06_CAM-10_f75_t1.jpg",
+          "VEH-06_CAM-10_f80_t1.jpg"
+        ]
+      }
+    }
+  },
+  "license_plate_detection_partition_strategy": {
+    "total_images": 20,
+    "unique_scenes": 10,
+    "partition_unit": "physical_vehicle_scene",
+    "annotation_provenance": "Heuristic Haar cascade and contour filter (detect_plate_bbox_heuristic)",
+    "human_verified_annotations": false,
+    "validity_status": "HEURISTIC_PSEUDOLABEL_BENCHMARK_ONLY",
+    "validity_reason": "Annotations are unverified heuristic pseudo-labels. Evaluating detector predictions against these labels measures agreement with a heuristic script, not ground-truth detection accuracy.",
+    "splits": {
+      "training_split": {
+        "scene_count": 6,
+        "unique_scenes": ["scene_3", "scene_4", "scene_5", "scene_7", "scene_8", "scene_9"],
+        "representative_files": [
+          "plate_00003.jpg",
+          "plate_00005.jpg",
+          "plate_00008.jpg",
+          "plate_00009.jpg",
+          "plate_00013.jpg",
+          "plate_00014.jpg"
+        ]
+      },
+      "validation_calibration_split": {
+        "scene_count": 2,
+        "unique_scenes": ["scene_2", "scene_10"],
+        "representative_files": [
+          "plate_00000.jpg",
+          "plate_00017.jpg"
+        ]
+      },
+      "test_split": {
+        "scene_count": 2,
+        "unique_scenes": ["scene_1", "scene_6"],
+        "files": [
+          "plate_00001.jpg",
+          "plate_00006.jpg",
+          "gt/10.jpg",
+          "hazy/10.png"
+        ]
+      }
+    }
+  },
+  "license_plate_ocr_partition_strategy": {
+    "verified_ground_truth_scenes_count": 2,
+    "total_verified_plate_strings": 2,
+    "validity_status": "INSUFFICIENT_FOR_PERFORMANCE_CLAIMS",
+    "validity_reason": "Only two scenes have verified alphanumeric license plate ground truth strings (MH15TC554 and KL55R2473). A sample size of N=2 is statistically insufficient for calculating CER, Exact Match Accuracy, or Levenshtein distance with statistical validity.",
+    "evaluated_samples": [
+      {
+        "scene": "scene_1",
+        "clean_file": "data/dataset_samples/gt/1.jpg",
+        "hazy_file": "data/dataset_samples/hazy/1.png",
+        "ground_truth_plate": "MH15TC554",
+        "verified": true
+      },
+      {
+        "scene": "scene_6",
+        "clean_file": "data/dataset_samples/gt/10.jpg",
+        "hazy_file": "data/dataset_samples/hazy/10.png",
+        "ground_truth_plate": "KL55R2473",
+        "verified": true
+      }
+    ]
+  }
+}

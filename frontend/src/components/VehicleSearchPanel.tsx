@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TiltCard3D } from "./TiltCard3D";
+import { getRecentVehicles, type VehicleDto } from "@/lib/api";
 
 export type SearchMode = "historical" | "live" | "combined";
 
@@ -16,15 +17,34 @@ const MODES: { value: SearchMode; label: string; desc: string }[] = [
   { value: "combined", label: "Hybrid", desc: "Route + Live Play" },
 ];
 
-const PRESETS = [
-  { plate: "ET3633P", desc: "Silver Sedan (4 Cams)", tag: "DEMO TARGET" },
-  { plate: "DL04CA2020", desc: "Black Sedan (CAM-02)", tag: "DECOY" },
-  { plate: "KA05MH8899", desc: "Silver Hatch (CAM-05)", tag: "DECOY" },
-];
-
 export function VehicleSearchPanel({ onSearch, isSearching }: VehicleSearchPanelProps) {
-  const [plate, setPlate] = useState("ET3633P");
+  const [plate, setPlate] = useState("");
   const [mode, setMode] = useState<SearchMode>("historical");
+  const [recentVehicles, setRecentVehicles] = useState<VehicleDto[]>([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
+  const [recentError, setRecentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRecentVehicles()
+      .then((vehicles) => {
+        if (!cancelled) {
+          setRecentVehicles(vehicles);
+          setIsLoadingRecent(false);
+          setRecentError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setRecentVehicles([]);
+          setIsLoadingRecent(false);
+          setRecentError(err instanceof Error ? err.message : "Target registry unreachable");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,8 +52,9 @@ export function VehicleSearchPanel({ onSearch, isSearching }: VehicleSearchPanel
     onSearch(plate.trim(), mode);
   }
 
-  function handlePresetClick(presetPlate: string) {
-    setPlate(presetPlate);
+  function handleSelectRecentPlate(selectedPlate: string) {
+    setPlate(selectedPlate);
+    onSearch(selectedPlate, mode);
   }
 
   return (
@@ -71,9 +92,9 @@ export function VehicleSearchPanel({ onSearch, isSearching }: VehicleSearchPanel
               <input
                 value={plate}
                 onChange={(e) => setPlate(e.target.value.toUpperCase())}
-                placeholder="ET3633P"
+                placeholder="ENTER VEHICLE NUMBER"
                 spellCheck={false}
-                className="w-full bg-transparent px-3 py-2 font-mono text-lg sm:text-xl font-bold tracking-widest text-slate-950 placeholder-slate-400 outline-none uppercase min-w-0"
+                className="w-full bg-transparent px-3 py-2 font-mono text-base sm:text-lg font-bold tracking-widest text-slate-950 placeholder-slate-400 outline-none uppercase min-w-0"
               />
 
               {/* Security Hologram & Clear Button */}
@@ -97,43 +118,61 @@ export function VehicleSearchPanel({ onSearch, isSearching }: VehicleSearchPanel
             </div>
           </div>
 
-          {/* Preset Target Scenarios */}
+          {/* Genuinely Ingested Target Plates (or Honest Empty State) */}
           <div>
-            <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-800 mb-1.5">
-              Preset Scenarios:
+            <div className="text-xs font-mono font-bold uppercase tracking-wider text-slate-800 mb-1.5 flex items-center justify-between">
+              <span>Recently Detected Targets:</span>
+              <span className="text-[10px] text-slate-500 font-normal">
+                {recentVehicles.length > 0 ? `${recentVehicles.length} persisted` : "0 in database"}
+              </span>
             </div>
-            <div className="flex flex-col gap-1.5">
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset.plate}
-                  type="button"
-                  onClick={() => handlePresetClick(preset.plate)}
-                  className={`group flex items-center justify-between rounded-md border px-3 py-2 text-left transition-all cursor-pointer ${
-                    plate === preset.plate
-                      ? "border-slate-800 bg-slate-100 text-slate-950 font-bold"
-                      : "border-slate-300 bg-white text-slate-900 hover:bg-slate-50 hover:border-slate-400 font-semibold"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="font-mono font-bold text-slate-950 text-xs sm:text-sm shrink-0">
-                      {preset.plate}
-                    </span>
-                    <span className="text-[11px] sm:text-xs text-slate-700 font-medium truncate">
-                      {preset.desc}
-                    </span>
-                  </div>
-                  <span
-                    className={`text-[9px] font-mono px-1.5 py-0.5 rounded-xs font-bold uppercase shrink-0 ml-1.5 ${
-                      preset.tag === "DEMO TARGET"
-                        ? "bg-slate-800 text-white"
-                        : "bg-slate-200 text-slate-900 border border-slate-300"
+
+            {isLoadingRecent ? (
+              <div className="p-3 text-center font-mono text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-md">
+                Checking database for detected targets...
+              </div>
+            ) : recentError ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-center text-xs text-amber-900 font-mono">
+                <span className="font-bold">⚠ Target registry unavailable</span>
+                <p className="text-[10px] text-amber-800 mt-0.5">{recentError}</p>
+              </div>
+            ) : recentVehicles.length > 0 ? (
+              <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+                {recentVehicles.map((v) => (
+                  <button
+                    key={v.plate}
+                    type="button"
+                    onClick={() => handleSelectRecentPlate(v.plate)}
+                    className={`group flex items-center justify-between rounded-md border px-3 py-1.5 text-left transition-all cursor-pointer ${
+                      plate === v.plate
+                        ? "border-slate-800 bg-slate-100 text-slate-950 font-bold"
+                        : "border-slate-300 bg-white text-slate-900 hover:bg-slate-50 hover:border-slate-400 font-semibold"
                     }`}
                   >
-                    {preset.tag}
-                  </span>
-                </button>
-              ))}
-            </div>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="font-mono font-bold text-slate-950 text-xs sm:text-sm shrink-0">
+                        {v.plate}
+                      </span>
+                      <span className="text-[11px] text-slate-600 truncate">
+                        {[v.color, v.vehicleType || v.make].filter(Boolean).join(" ") || "Detected Vehicle"}
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-xs bg-slate-200 text-slate-800 border border-slate-300 font-bold uppercase shrink-0 ml-1.5">
+                      DETECTED
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-slate-300 bg-slate-50/80 p-3 text-center">
+                <p className="text-xs font-mono text-slate-600 font-medium">
+                  No vehicles detected in database yet.
+                </p>
+                <p className="text-[10px] font-mono text-slate-500 mt-1">
+                  Upload traffic footage using &ldquo;Ingest Video Feed&rdquo; to detect and track targets.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Tracking Mode */}

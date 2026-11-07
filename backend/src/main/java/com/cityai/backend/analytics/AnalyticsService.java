@@ -60,9 +60,9 @@ public class AnalyticsService {
                 .filter(c -> c != null && c.getId() != null)
                 .collect(Collectors.toMap(c -> c.getId(), c -> c));
 
-        int camerasOnline = (int) cameras.stream().filter(c -> c != null && "ONLINE".equals(c.getStatus())).count();
+        int camerasOnline = (int) cameras.stream().filter(c -> c != null && ("ONLINE".equals(c.getStatus()) || "STREAM_CONNECTED".equals(c.getStatus()))).count();
         int camerasProcessing = (int) cameras.stream().filter(c -> c != null && "PROCESSING".equals(c.getStatus())).count();
-        int camerasOffline = (int) cameras.stream().filter(c -> c != null && "OFFLINE".equals(c.getStatus())).count();
+        int camerasOffline = (int) cameras.stream().filter(c -> c != null && ("OFFLINE".equals(c.getStatus()) || "STREAM_DISCONNECTED".equals(c.getStatus()) || "CONFIGURED".equals(c.getStatus()) || "REGISTERED".equals(c.getStatus()))).count();
 
         List<TypeCountDto> vehicleTypeDistribution = vehicles.stream()
                 .filter(v -> v != null && v.getVehicleType() != null)

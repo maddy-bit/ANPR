@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
  * isn't present, i.e. when running on the default H2 profile.
  */
 @Service
-@Profile("postgres")
+@Profile("!h2")
 public class SpatialCameraService {
 
     private final JdbcTemplate jdbcTemplate;

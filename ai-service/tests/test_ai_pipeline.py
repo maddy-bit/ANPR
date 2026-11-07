@@ -109,13 +109,83 @@ def test_identity_scorer():
 
     obs1 = VehicleObservation(
         camera_id="CAM-01", track_id=1, reid_embedding=vec_norm,
-        license_plate="MH12AB1234", plate_confidence=0.9, color="Blue", vehicle_type="car"
+        license_plate="MH12AB1234", plate_confidence=0.9, color="Blue", vehicle_type="car",
+        timestamp_first=100.0, timestamp_last=100.0,
     )
     obs2 = VehicleObservation(
         camera_id="CAM-02", track_id=2, reid_embedding=vec_norm,
-        license_plate="MH12AB1234", plate_confidence=0.9, color="Blue", vehicle_type="car"
+        license_plate="MH12AB1234", plate_confidence=0.9, color="Blue", vehicle_type="car",
+        timestamp_first=180.0, timestamp_last=180.0,
     )
     match_res = scorer.score_pair(obs1, obs2)
     assert match_res.is_match is True
+    assert match_res.decision == "MATCH"
     assert match_res.plate_score > 0.8
     assert match_res.reid_score > 0.8
+
+
+def test_identity_scorer_plate_conflict_overrides_visual():
+    scorer = IdentityScorer()
+    vec = [0.1] * 10
+    norm = np.linalg.norm(vec)
+    vec_norm = (np.array(vec) / norm).tolist()
+
+    obs1 = VehicleObservation(
+        camera_id="CAM-01", track_id=1, reid_embedding=vec_norm,
+        license_plate="MH12AB1234", plate_confidence=0.9, color="Blue", vehicle_type="car",
+        timestamp_first=100.0, timestamp_last=100.0,
+    )
+    obs2 = VehicleObservation(
+        camera_id="CAM-02", track_id=2, reid_embedding=vec_norm,
+        license_plate="DL01XY9999", plate_confidence=0.9, color="Blue", vehicle_type="car",
+        timestamp_first=180.0, timestamp_last=180.0,
+    )
+    match_res = scorer.score_pair(obs1, obs2)
+    assert match_res.is_match is False
+    assert match_res.decision == "NO_MATCH"
+    assert "plate conflict" in match_res.reason.lower()
+
+
+def test_identity_scorer_visual_only_is_uncertain():
+    scorer = IdentityScorer()
+    vec = [0.1] * 10
+    norm = np.linalg.norm(vec)
+    vec_norm = (np.array(vec) / norm).tolist()
+
+    obs1 = VehicleObservation(
+        camera_id="CAM-01", track_id=1, reid_embedding=vec_norm,
+        license_plate=None, plate_confidence=0.0, color="Blue", vehicle_type="car",
+        timestamp_first=100.0, timestamp_last=100.0,
+    )
+    obs2 = VehicleObservation(
+        camera_id="CAM-02", track_id=2, reid_embedding=vec_norm,
+        license_plate=None, plate_confidence=0.0, color="Blue", vehicle_type="car",
+        timestamp_first=180.0, timestamp_last=180.0,
+    )
+    match_res = scorer.score_pair(obs1, obs2)
+    assert match_res.is_match is False
+    assert match_res.decision == "UNCERTAIN"
+    assert "visual similarity" in match_res.reason.lower()
+
+
+def test_identity_scorer_impossible_transition_rejected():
+    scorer = IdentityScorer()
+    vec = [0.1] * 10
+    norm = np.linalg.norm(vec)
+    vec_norm = (np.array(vec) / norm).tolist()
+
+    obs1 = VehicleObservation(
+        camera_id="CAM-01", track_id=1, reid_embedding=vec_norm,
+        license_plate="MH12AB1234", plate_confidence=0.9, color="Blue", vehicle_type="car",
+        timestamp_first=100.0, timestamp_last=100.0,
+    )
+    obs2 = VehicleObservation(
+        camera_id="CAM-02", track_id=2, reid_embedding=vec_norm,
+        license_plate="MH12AB1234", plate_confidence=0.9, color="Blue", vehicle_type="car",
+        timestamp_first=101.0, timestamp_last=101.0,  # 800m in 1 second = 2880 km/h
+    )
+    match_res = scorer.score_pair(obs1, obs2)
+    assert match_res.is_match is False
+    assert match_res.decision == "NO_MATCH"
+    assert "impossible" in match_res.reason.lower()
+

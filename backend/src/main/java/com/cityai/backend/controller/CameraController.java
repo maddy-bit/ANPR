@@ -7,10 +7,14 @@ import com.cityai.backend.spatial.SpatialCameraService;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +36,26 @@ public class CameraController {
     @Cacheable(value = "cameras", key = "'all'")
     public List<CameraDto> listCameras() {
         return cameraRepository.findAll().stream().map(CameraDto::from).toList();
+    }
+
+    @PostMapping
+    @CacheEvict(value = "cameras", allEntries = true)
+    public ResponseEntity<CameraDto> registerCamera(@RequestBody CameraDto dto) {
+        if (dto.id() == null || dto.id().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        String status = (dto.status() != null && !dto.status().isBlank()) ? dto.status() : "CONFIGURED";
+        Camera camera = new Camera(
+                dto.id().trim(),
+                dto.name() != null ? dto.name().trim() : ("Camera " + dto.id().trim()),
+                dto.latitude(),
+                dto.longitude(),
+                dto.direction() != null ? dto.direction().trim() : "N",
+                status,
+                null
+        );
+        Camera saved = cameraRepository.save(camera);
+        return ResponseEntity.status(HttpStatus.CREATED).body(CameraDto.from(saved));
     }
 
     /**

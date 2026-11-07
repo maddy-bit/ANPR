@@ -1,0 +1,291 @@
+{
+  "timestamp": "2026-11-04T13:06:53.840215+00:00",
+  "model": {
+    "name": "fastreid_veri_sbs_r50_ibn",
+    "version": "veri-776-v1",
+    "dimension": 2048
+  },
+  "scenarios": [
+    {
+      "scenario": 1,
+      "name": "Same vehicle cross-camera true match",
+      "ground_truth": "MATCH",
+      "decision": "MATCH",
+      "overall_score": 0.9757,
+      "reid_score": 1.0,
+      "plate_score": 0.9460000000000001,
+      "pass": true
+    },
+    {
+      "scenario": 2,
+      "name": "Different vehicles similar appearance (hard negative)",
+      "ground_truth": "NO_MATCH",
+      "decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.7177352093690902,
+      "plate_score": 0.5658,
+      "pass": true
+    },
+    {
+      "scenario": 3,
+      "name": "Matching plates and high visual similarity",
+      "ground_truth": "MATCH",
+      "decision": "MATCH",
+      "overall_score": 0.96895,
+      "reid_score": 1.0,
+      "plate_score": 0.931,
+      "pass": true
+    },
+    {
+      "scenario": 4,
+      "name": "High visual similarity but conflicting plates",
+      "ground_truth": "NO_MATCH",
+      "decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 1.0,
+      "plate_score": 0.0,
+      "pass": true
+    },
+    {
+      "scenario": 5,
+      "name": "Missing plate with high visual similarity",
+      "ground_truth": "UNCERTAIN",
+      "decision": "UNCERTAIN",
+      "overall_score": 1.0,
+      "reid_score": 1.0,
+      "plate_score": null,
+      "pass": true
+    },
+    {
+      "scenario": 6,
+      "name": "Physically impossible transit (speed violation)",
+      "ground_truth": "NO_MATCH",
+      "decision": "NO_MATCH",
+      "overall_score": 0.0,
+      "reid_score": 1.0,
+      "plate_score": 0.9520000000000001,
+      "pass": true
+    },
+    {
+      "scenario": 7,
+      "name": "Unknown camera topology / unconfigured coordinates",
+      "ground_truth": "UNCERTAIN",
+      "decision": "UNCERTAIN",
+      "overall_score": 0.5,
+      "reid_score": 1.0,
+      "plate_score": 0.9460000000000001,
+      "pass": true
+    },
+    {
+      "scenario": 8,
+      "name": "Duplicate evaluation idempotency",
+      "ground_truth": "IDEMPOTENT",
+      "decision": "IDEMPOTENT_MATCH",
+      "overall_score": 0.9757,
+      "reid_score": 1.0,
+      "plate_score": 0.9460000000000001,
+      "pass": true
+    },
+    {
+      "scenario": 9,
+      "name": "Association review resolution (confirm, reject, flag)",
+      "ground_truth": "REVIEWABLE",
+      "decision": "RESOLVED",
+      "pass": true
+    }
+  ],
+  "metrics": {
+    "total_pairs": 18,
+    "true_positives": 3,
+    "true_negatives": 12,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "uncertain_count": 3,
+    "precision_pct": 100.0,
+    "recall_pct": 100.0,
+    "false_match_rate_pct": 0.0,
+    "uncertain_rate_pct": 16.666666666666664
+  },
+  "matrix_details": [
+    {
+      "source_id": 64,
+      "candidate_id": 65,
+      "ground_truth": "MATCH",
+      "system_decision": "MATCH",
+      "overall_score": 0.9757,
+      "reid_score": 1.0,
+      "plate_score": 0.9460000000000001,
+      "reason": "Multi-signal agreement: plate (0.95), visual (1.000), attributes (1.0), topology (1.0)"
+    },
+    {
+      "source_id": 66,
+      "candidate_id": 71,
+      "ground_truth": "MATCH",
+      "system_decision": "MATCH",
+      "overall_score": 0.96895,
+      "reid_score": 1.0,
+      "plate_score": 0.931,
+      "reason": "Multi-signal agreement: plate (0.93), visual (1.000), attributes (1.0), topology (1.0)"
+    },
+    {
+      "source_id": 72,
+      "candidate_id": 73,
+      "ground_truth": "MATCH",
+      "system_decision": "MATCH",
+      "overall_score": 0.9621999999999999,
+      "reid_score": 1.0,
+      "plate_score": 0.916,
+      "reason": "Multi-signal agreement: plate (0.92), visual (1.000), attributes (1.0), topology (1.0)"
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 66,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.7177352093690902,
+      "plate_score": 0.5658,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12DE1001' vs 'MH12TC2002' (conf: 0.92, 0.89)"
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 71,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.7177352093690902,
+      "plate_score": 0.5640000000000001,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12DE1001' vs 'MH12TC2002' (conf: 0.92, 0.88)"
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 72,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.0,
+      "reid_score": 0.7493685899135112,
+      "plate_score": 0.4685,
+      "reason": "Physically impossible transition: Apparent speed (124.5 km/h) exceeds maximum limit (100.0 km/h) over 3.46 km in 100.0s"
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 73,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.7493685899135112,
+      "plate_score": 0.4655,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12DE1001' vs 'MH14KL3003' (conf: 0.92, 0.85)"
+    },
+    {
+      "source_id": 65,
+      "candidate_id": 66,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.7177352093690902,
+      "plate_score": 0.5622,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12DE1001' vs 'MH12TC2002' (conf: 0.90, 0.89)"
+    },
+    {
+      "source_id": 65,
+      "candidate_id": 72,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.7493685899135112,
+      "plate_score": 0.4655,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12DE1001' vs 'MH14KL3003' (conf: 0.90, 0.87)"
+    },
+    {
+      "source_id": 66,
+      "candidate_id": 72,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.0,
+      "reid_score": 0.6096734047161702,
+      "plate_score": 0.464,
+      "reason": "Physically impossible transition: Apparent speed (264.3 km/h) exceeds maximum limit (100.0 km/h) over 2.94 km in 40.0s"
+    },
+    {
+      "source_id": 66,
+      "candidate_id": 73,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.6096734047161702,
+      "plate_score": 0.461,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12TC2002' vs 'MH14KL3003' (conf: 0.89, 0.85)"
+    },
+    {
+      "source_id": 71,
+      "candidate_id": 72,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.6096734047161702,
+      "plate_score": 0.4625,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12TC2002' vs 'MH14KL3003' (conf: 0.88, 0.87)"
+    },
+    {
+      "source_id": 71,
+      "candidate_id": 73,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 0.6096734047161702,
+      "plate_score": 0.4595,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12TC2002' vs 'MH14KL3003' (conf: 0.88, 0.85)"
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 67,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.15,
+      "reid_score": 1.0,
+      "plate_score": 0.0,
+      "reason": "High-confidence plate conflict overrides visual similarity: Plate conflict: 'MH12DE1001' vs 'DL01XY9999' (conf: 0.92, 0.94)"
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 69,
+      "ground_truth": "NO_MATCH",
+      "system_decision": "NO_MATCH",
+      "overall_score": 0.0,
+      "reid_score": 1.0,
+      "plate_score": 0.9520000000000001,
+      "reason": "Physically impossible transition: Apparent speed (15547.8 km/h) exceeds maximum limit (100.0 km/h) over 8.64 km in 2.0s"
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 68,
+      "ground_truth": "UNCERTAIN",
+      "system_decision": "UNCERTAIN",
+      "overall_score": 1.0,
+      "reid_score": 1.0,
+      "plate_score": null,
+      "reason": "High visual similarity (1.000) without plate verification is ambiguous (subject to false-match risk); marked UNCERTAIN for review."
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 70,
+      "ground_truth": "UNCERTAIN",
+      "system_decision": "UNCERTAIN",
+      "overall_score": 0.5,
+      "reid_score": 1.0,
+      "plate_score": 0.9460000000000001,
+      "reason": "Camera topology/coordinates unconfigured; cannot verify physical feasibility. Marked UNCERTAIN."
+    },
+    {
+      "source_id": 64,
+      "candidate_id": 74,
+      "ground_truth": "UNCERTAIN",
+      "system_decision": "UNCERTAIN",
+      "overall_score": 0.5,
+      "reid_score": 1.0,
+      "plate_score": null,
+      "reason": "Camera topology/coordinates unconfigured; cannot verify physical feasibility. Marked UNCERTAIN."
+    }
+  ]
+}

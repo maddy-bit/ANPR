@@ -71,6 +71,9 @@ class VehicleObservation(BaseModel):
     all_plate_readings: List[PlateObservation] = Field(default_factory=list)
     reid_embedding: Optional[List[float]] = None
     reid_embedding_avg: Optional[List[float]] = None
+    reid_model_name: Optional[str] = None
+    reid_model_version: Optional[str] = None
+    reid_dimension: Optional[int] = None
     evidence_image_path: Optional[str] = None
 
     def model_post_init(self, __context):
@@ -97,6 +100,7 @@ class IdentityMatchDetail(BaseModel):
     score: float = 0.0
     total_score: float = 0.0
     is_match: bool = False
+    decision: str = "NO_MATCH"
     match_level: str = "UNKNOWN"
     reason: str = ""
 
@@ -276,6 +280,19 @@ class DetectionEvent(BaseModel):
     image_path: Optional[str] = None
     reid_confidence: Optional[float] = None
     reid_embedding: Optional[List[float]] = None
+    reid_model_name: Optional[str] = None
+    reid_model_version: Optional[str] = None
+    reid_dimension: Optional[int] = None
+    video_upload_id: Optional[str] = None
+
+
+class ProcessVideoUploadRequest(BaseModel):
+    video_upload_id: str
+    video_path: str
+    camera_id: str = 'CAM-01'
+    enable_dehaze: bool = False
+    frame_stride: int = 5
+    start_time: str = '2026-09-05T12:00:00' 
 
 
 class ProcessVideoRequest(BaseModel):

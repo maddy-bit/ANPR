@@ -114,7 +114,7 @@ export function SystemStatusBar() {
   }, []);
 
   const systemLabel =
-    state === "checking" ? "CONNECTING…" : state === "online" ? "ONLINE" : "SIM ACTIVE";
+    state === "checking" ? "CONNECTING…" : state === "online" ? "ONLINE" : "OFFLINE";
 
   return (
     <div className="flex items-center rounded-md border-1.5 border-slate-400 bg-white py-1">
@@ -143,7 +143,7 @@ export function SystemStatusBar() {
       <div className="hidden sm:block">
         <StatusItem
           label="Mesh Nodes"
-          value={cameraCounts ? `${cameraCounts.online}/${cameraCounts.total}` : "12/12"}
+          value={cameraCounts ? `${cameraCounts.online}/${cameraCounts.total}` : "—"}
           tone="cyan"
         />
       </div>
@@ -157,7 +157,7 @@ export function SystemStatusBar() {
               ? `ONLINE${redisInfo.latency != null ? ` (${redisInfo.latency}ms)` : ""}`
               : redisInfo?.status === "STANDALONE_FALLBACK"
               ? "IN-MEMORY"
-              : "READY"
+              : (state === "offline" ? "DISCONNECTED" : "STANDALONE")
           }
           tone={redisInfo?.status === "UP" ? "positive" : "warning"}
         />

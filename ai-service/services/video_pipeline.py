@@ -66,6 +66,7 @@ class CameraAgent:
         plate_sample_stride: int = int(cfg.PLATE_SAMPLE_STRIDE),
         enable_dehaze: bool = False,
         progress_callback: Optional[Callable[[int, int, Dict[str, Any]], None]] = None,
+        video_upload_id: Optional[str] = None,
     ) -> tuple[int, list[VehicleObservation], list[DetectionEvent]]:
         """
         Process an entire video feed.
@@ -209,6 +210,10 @@ class CameraAgent:
                             image_path=rel_crop_path,
                             reid_confidence=0.85 if emb else None,
                             reid_embedding=emb.vector.tolist() if (emb and hasattr(emb.vector, 'tolist')) else (list(emb.vector) if emb else None),
+                            reid_model_name=emb.model_name if emb else None,
+                            reid_model_version=emb.model_version if emb else None,
+                            reid_dimension=emb.dimension if emb else None,
+                            video_upload_id=video_upload_id,
                         )
                     )
 

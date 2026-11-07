@@ -5,7 +5,13 @@ import { getSecurityAlerts, getWatchlist, addWatchlistEntry, type SecurityAlertD
 
 export function SecurityWatchlistModal() {
   const [alerts, setAlerts] = useState<SecurityAlertDto[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+
   const [watchlist, setWatchlist] = useState<{ plateNumber: string; reason: string; severity: string }[]>([]);
+  const [watchlistLoading, setWatchlistLoading] = useState(true);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<"alerts" | "watchlist">("alerts");
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -14,10 +20,46 @@ export function SecurityWatchlistModal() {
   const [newReason, setNewReason] = useState("HIGH_VALUE_STOLEN_VEHICLE");
   const [newSeverity, setNewSeverity] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("CRITICAL");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
-    getSecurityAlerts().then(setAlerts).catch(() => {});
-    getWatchlist().then(setWatchlist).catch(() => {});
+    let cancelled = false;
+
+    getSecurityAlerts()
+      .then((data) => {
+        if (!cancelled) {
+          setAlerts(data);
+          setAlertsLoading(false);
+          setAlertsError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setAlerts([]);
+          setAlertsLoading(false);
+          setAlertsError(err instanceof Error ? err.message : "Security alert service unavailable");
+        }
+      });
+
+    getWatchlist()
+      .then((data) => {
+        if (!cancelled) {
+          setWatchlist(data);
+          setWatchlistLoading(false);
+          setWatchlistError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setWatchlist([]);
+          setWatchlistLoading(false);
+          setWatchlistError(err instanceof Error ? err.message : "Watchlist service unavailable");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleAddEntry(e: React.FormEvent) {
@@ -25,6 +67,7 @@ export function SecurityWatchlistModal() {
     if (!newPlate.trim()) return;
 
     setIsSubmitting(true);
+    setAddError(null);
     const formattedPlate = newPlate.toUpperCase().replace(/\s+/g, "");
 
     try {
@@ -37,10 +80,8 @@ export function SecurityWatchlistModal() {
       setWatchlist((prev) => [added, ...prev]);
       setNewPlate("");
       setShowAddForm(false);
-    } catch {
-      setWatchlist((prev) => [{ plateNumber: formattedPlate, reason: newReason, severity: newSeverity }, ...prev]);
-      setNewPlate("");
-      setShowAddForm(false);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to register target plate with service");
     } finally {
       setIsSubmitting(false);
     }
@@ -79,7 +120,7 @@ export function SecurityWatchlistModal() {
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
-            Live Alerts ({alerts.length})
+            Live Alerts ({alertsLoading ? "…" : alerts.length})
           </button>
           <button
             type="button"
@@ -90,15 +131,27 @@ export function SecurityWatchlistModal() {
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
-            Watchlist ({watchlist.length})
+            Watchlist ({watchlistLoading ? "…" : watchlist.length})
           </button>
         </div>
       </div>
 
       <div className="mt-3 max-h-56 overflow-y-auto pr-1">
         {activeTab === "alerts" ? (
-          alerts.length === 0 ? (
-            <p className="text-xs text-slate-500 italic">No security alerts triggered. Surveillance clear.</p>
+          alertsLoading ? (
+            <div className="py-4 text-center text-xs font-mono text-slate-500">
+              Connecting to surveillance alert stream…
+            </div>
+          ) : alertsError ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 font-mono">
+              <div className="font-bold flex items-center gap-1.5 mb-1">
+                <span>⚠</span>
+                <span>Security Alerts Service Unavailable</span>
+              </div>
+              <p className="text-[11px] text-amber-800">{alertsError}</p>
+            </div>
+          ) : alerts.length === 0 ? (
+            <p className="text-xs text-slate-500 italic py-2">No security alerts triggered. Surveillance clear.</p>
           ) : (
             alerts.map((a, idx) => (
               <div key={a.alertId || idx} className="mb-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs shadow-xs">
@@ -122,7 +175,10 @@ export function SecurityWatchlistModal() {
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Registered Targets</span>
               <button
                 type="button"
-                onClick={() => setShowAddForm(!showAddForm)}
+                onClick={() => {
+                  setShowAddForm(!showAddForm);
+                  setAddError(null);
+                }}
                 className="rounded-lg bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700 border border-sky-200 hover:bg-sky-100 transition-all cursor-pointer"
               >
                 {showAddForm ? "Cancel" : "+ Add Target Plate"}
@@ -131,11 +187,16 @@ export function SecurityWatchlistModal() {
 
             {showAddForm && (
               <form onSubmit={handleAddEntry} className="rounded-xl border border-slate-200 bg-white p-3 text-xs space-y-2 shadow-xs">
+                {addError && (
+                  <div className="rounded-lg border border-rose-300 bg-rose-50 p-2 text-[11px] font-mono text-rose-800">
+                    ⚠ {addError}
+                  </div>
+                )}
                 <div>
                   <input
                     type="text"
                     required
-                    placeholder="Enter License Plate (e.g. MH15TC554)"
+                    placeholder="Enter Registration Plate (e.g. MH12DE1433)"
                     value={newPlate}
                     onChange={(e) => setNewPlate(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2 font-mono text-xs text-slate-900 uppercase focus:border-sky-500 focus:bg-white focus:outline-none"
@@ -166,15 +227,27 @@ export function SecurityWatchlistModal() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full rounded-lg bg-sky-600 py-1.5 text-xs font-bold text-white hover:bg-sky-700 transition-all cursor-pointer shadow-xs"
+                  className="w-full rounded-lg bg-sky-600 py-1.5 text-xs font-bold text-white hover:bg-sky-700 transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  {isSubmitting ? "Registering..." : "Register Watchlist Target"}
+                  {isSubmitting ? "Registering Target…" : "Register Watchlist Target"}
                 </button>
               </form>
             )}
 
-            {watchlist.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">No watchlisted plates registered.</p>
+            {watchlistLoading ? (
+              <div className="py-4 text-center text-xs font-mono text-slate-500">
+                Fetching registered target list…
+              </div>
+            ) : watchlistError ? (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 font-mono">
+                <div className="font-bold flex items-center gap-1.5 mb-1">
+                  <span>⚠</span>
+                  <span>Watchlist Service Unavailable</span>
+                </div>
+                <p className="text-[11px] text-amber-800">{watchlistError}</p>
+              </div>
+            ) : watchlist.length === 0 ? (
+              <p className="text-xs text-slate-500 italic py-2">No watchlisted plates registered.</p>
             ) : (
               watchlist.map((w, idx) => (
                 <div key={idx} className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5 text-xs border border-slate-200 shadow-xs">

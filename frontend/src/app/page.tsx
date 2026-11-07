@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { SystemStatusBar } from "@/components/SystemStatusBar";
 import { InvestigationDashboard } from "@/components/InvestigationDashboard";
+import { TrajectoryInvestigationDashboard } from "@/components/TrajectoryInvestigationDashboard";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { SystemBootLoader } from "@/components/SystemBootLoader";
 
-type View = "investigation" | "analytics";
+type View = "investigation" | "trajectory" | "analytics";
 
 export default function DashboardPage() {
   const [view, setView] = useState<View>("investigation");
@@ -42,7 +43,8 @@ export default function DashboardPage() {
           <nav className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 p-1 shrink-0">
             {(
               [
-                { value: "investigation", label: "Target Investigation", shortLabel: "Investigation", icon: "🎯" },
+                { value: "investigation", label: "Target Investigation", shortLabel: "Target", icon: "🎯" },
+                { value: "trajectory", label: "Multi-Camera Trajectory", shortLabel: "Trajectory", icon: "🛰️" },
                 { value: "analytics", label: "Traffic Analytics", shortLabel: "Analytics", icon: "📊" },
               ] as const
             ).map((tab) => (
@@ -82,7 +84,13 @@ export default function DashboardPage() {
 
       {/* Main Content View */}
       <main className="flex flex-1 flex-col">
-        {view === "investigation" ? <InvestigationDashboard /> : <AnalyticsDashboard />}
+        {view === "investigation" ? (
+          <InvestigationDashboard />
+        ) : view === "trajectory" ? (
+          <TrajectoryInvestigationDashboard />
+        ) : (
+          <AnalyticsDashboard />
+        )}
       </main>
     </div>
   );

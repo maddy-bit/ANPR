@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
  * as an addition, not a rewrite of the ORM layer.
  */
 @Component
-@Profile("postgres")
+@Profile("!h2")
 public class PostGisMigrationRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(PostGisMigrationRunner.class);

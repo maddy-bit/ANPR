@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "manifest_version": "2.1.0",
+  "project": "SIH26127 Traffic Intelligence & Vehicle Investigation Platform",
+  "phase": "B",
+  "batch": "B3.2",
+  "updated_at_utc": "2026-11-08T02:05:00Z",
+  "objective": "External Dataset Integration & Ingestion Loaders (Batch B3.2)",
+  "storage_summary": {
+    "system_available_disk_gb": 269.36,
+    "audit_mode": "STRICT_READ_ONLY",
+    "total_raw_archives_gb": 19.64,
+    "total_extracted_datasets_gb": 28.9,
+    "modifications_performed": "NONE (Zero renames, moves, deletions, stages, or commits)"
+  },
+  "datasets": [
+    {
+      "dataset_id": "veri_776",
+      "dataset_version": "VeRi-776 (Standard Benchmark Release)",
+      "name": "VeRi-776",
+      "primary_role": "Vehicle Re-Identification & Camera Topology Spatio-Temporal Calibration",
+      "acquisition_status": "ACQUIRED_AND_AUDITED",
+      "local_presence": "EXTRACTED_LOCALLY",
+      "local_paths": {
+        "raw_archive": "data/benchmarks/external/veri_776/raw/VeRi.zip",
+        "extracted_root": "data/benchmarks/external/veri_776/extracted/VeRi/",
+        "image_train": "data/benchmarks/external/veri_776/extracted/VeRi/image_train/",
+        "image_test": "data/benchmarks/external/veri_776/extracted/VeRi/image_test/",
+        "image_query": "data/benchmarks/external/veri_776/extracted/VeRi/image_query/",
+        "train_xml": "data/benchmarks/external/veri_776/extracted/VeRi/train_label.xml",
+        "test_xml": "data/benchmarks/external/veri_776/extracted/VeRi/test_label.xml",
+        "name_train": "data/benchmarks/external/veri_776/extracted/VeRi/name_train.txt",
+        "name_test": "data/benchmarks/external/veri_776/extracted/VeRi/name_test.txt",
+        "name_query": "data/benchmarks/external/veri_776/extracted/VeRi/name_query.txt",
+        "jk_index": "data/benchmarks/external/veri_776/extracted/VeRi/jk_index.txt",
+        "gt_index": "data/benchmarks/external/veri_776/extracted/VeRi/gt_index.txt",
+        "camera_dist": "data/benchmarks/external/veri_776/extracted/VeRi/camera_Dist.txt",
+        "camera_id": "data/benchmarks/external/veri_776/extracted/VeRi/camera_ID.txt"
+      },
+      "official_source": {
+        "repository_url": "https://github.com/JDAI-CV/VeRidataset",
+        "institutional_source": "Institute of Computer Science and Technology, Peking University & Beijing University of Posts and Telecommunications (BUPT)",
+        "authors": "Xinchen Liu, Wu Liu, Huadong Ma, Huiyuan Fu",
+        "publication": "Large-Scale Vehicle Re-Identification in Urban Surveillance Videos (IEEE ICME 2016 / IEEE T-MM 2018)"
+      },
+      "licensing": {
+        "license_name": "VeRi-776 Academic Research Agreement",
+        "commercial_use_permitted": false,
+        "redistribution_permitted": false,
+        "modification_permitted": false,
+        "academic_noncommercial_only": true,
+        "compliance_notes": "Internal evaluation runtime usage only. No redistribution or public sharing."
+      },
+      "loader_integration": {
+        "loader_class": "loaders.veri776.VeRi776Loader",
+        "supported_splits": ["train", "test", "query"],
+        "lazy_loading": true,
+        "orphan_handling": "STRICT_EXCLUSION (32 orphan files quarantined from training)",
+        "topology_support": true,
+        "validation_status": "PASSED (51,003 verified samples)"
+      },
+      "verified_scale_and_statistics": {
+        "raw_archive_bytes": 991440323,
+        "raw_archive_mb": 945.51,
+        "extracted_size_gb": 2.8,
+        "total_images_on_disk": 51035,
+        "verified_training_images": 37746,
+        "verified_test_gallery_images": 11579,
+        "verified_query_images": 1678,
+        "total_unique_vehicles": 775,
+        "training_vehicle_ids": 575,
+        "test_vehicle_ids": 200,
+        "query_vehicle_ids": 200,
+        "train_test_id_leakage": "ZERO (0% vehicle ID overlap; strictly disjoint partitions)",
+        "total_cameras": 20,
+        "camera_ids": ["c001", "c002", "c003", "c004", "c005", "c006", "c007", "c008", "c009", "c010", "c011", "c012", "c013", "c014", "c015", "c016", "c017", "c018", "c019", "c020"],
+        "train_cameras_used": 20,
+        "test_cameras_used": 19,
+        "query_cameras_used": 19,
+        "camera_c020_status": "TRAIN_ONLY (Not present in test gallery or query sets)",
+        "camera_dist_matrix_shape": [20, 20],
+        "camera_id_order": [7, 5, 8, 4, 9, 3, 10, 6, 11, 2, 1, 13, 12, 18, 17, 19, 20, 15, 14, 16],
+        "xml_encoding": "GB2312_GB18030 (Requires gb18030 decode with UTF-8 replacement header)"
+      },
+      "critical_audit_findings": {
+        "unannotated_train_images_count": 32,
+        "unannotated_train_images_root_cause": "The image_train directory contains 37,778 files, but name_train.txt and train_label.xml declare exactly 37,746 images. The 32 extra files belong to VIDs 0324 (5), 0389 (24), and 0395 (3). SHA-256 analysis proved that 1 file (0395_c012_00049530_0.jpg) is bit-identical to test gallery image 0402_c012_00049530_0.jpg, and 11 files are bit-identical to other valid training images under different vehicle IDs (0304, 0432). The dataset authors sanitized their official index and XML to exclude these mislabeled/duplicate crops but left the orphan image files in the directory archive.",
+        "integration_mandate_for_orphan_images": "CRITICAL: The evaluation harness MUST consume name_train.txt and train_label.xml as the authoritative source of truth. All 32 unannotated orphan files MUST be strictly excluded from model ingestion.",
+        "query_gallery_relationship": "All 1,678 query image filenames exist in image_test (test gallery). 299 query images have identical SHA-256 hashes to their gallery counterparts; 1,379 exhibit slight pixel modifications localized to the vehicle license plate region (where plates are masked/blacked out in gallery vs partially unmasked or differently compressed in query). Standard Market-1501/VeRi protocol applies: gallery matches from the same camera and identical timestamp are filtered via jk_index.txt during evaluation.",
+        "plate_ocr_suitability": "UNSUITABLE_FOR_OCR (VeRi-776 standard XML annotations do not include license plate text strings; images are vehicle crops from distant surveillance cameras. Must be used exclusively for Re-ID appearance matching and spatio-temporal transition velocity calibration)."
+      },
+      "supported_metrics": [
+        "CMC Rank-1, Rank-5, Rank-10",
+        "Mean Average Precision (mAP)",
+        "Pairwise Cross-Camera Precision & Recall",
+        "Spatial-Temporal Transition Velocity Feasibility"
+      ]
+    },
+    {
+      "dataset_id": "ua_detrac",
+      "dataset_version": "UA-DETRAC Benchmark (Test Sequences + XML/MAT Annotations)",
+      "name": "UA-DETRAC",
+      "primary_role": "Multi-Class Vehicle Detection & Single-Camera Motion Tracking",
+      "acquisition_status": "ACQUIRED_AND_AUDITED",
+      "local_presence": "EXTRACTED_LOCALLY",
+      "local_paths": {
+        "raw_archives": [
+          "data/benchmarks/external/ua_detrac/raw/DETRAC-Images.zip",
+          "data/benchmarks/external/ua_detrac/raw/DETRAC-Test-Annotations-XML.zip",
+          "data/benchmarks/external/ua_detrac/raw/DETRAC-Test-Annotations-MAT.zip"
+        ],
+        "extracted_root": "data/benchmarks/external/ua_detrac/extracted/",
+        "images_dir": "data/benchmarks/external/ua_detrac/extracted/DETRAC-Images/",
+        "test_xml_annotations": "data/benchmarks/external/ua_detrac/extracted/DETRAC-Test-Annotations-XML/",
+        "test_mat_annotations": "data/benchmarks/external/ua_detrac/extracted/DETRAC-Test-Annotations-MAT/"
+      },
+      "official_source": {
+        "portal_url": "http://detrac-db.rit.albany.edu/",
+        "institutional_source": "University at Albany, State University of New York (SUNY)",
+        "authors": "Longyin Wen, Dawei Du, Zhaowei Cai, Zhen Lei, Ming-Ching Chang, Honggang Qi, Jongwoo Lim, Ming-Hsuan Yang, Siwei Lyu",
+        "publication": "UA-DETRAC: A New Benchmark and Protocol for Multi-Object Detection and Tracking (IEEE AVSS 2015 / CVIU 2020)"
+      },
+      "licensing": {
+        "license_name": "UA-DETRAC Academic Research Agreement",
+        "commercial_use_permitted": false,
+        "redistribution_permitted": false,
+        "academic_noncommercial_only": true,
+        "compliance_notes": "Academic evaluation and benchmarking only."
+      },
+      "loader_integration": {
+        "loader_class": "loaders.ua_detrac.UaDetracLoader",
+        "supported_splits": ["test"],
+        "lazy_loading": true,
+        "empty_frame_handling": "ZERO_OBJECT_GROUND_TRUTH (173 omitted XML frames represented)",
+        "train_sequence_isolation": "ENFORCED (60 training sequences excluded)",
+        "validation_status": "PASSED (56,340 verified test frames)"
+      },
+      "verified_scale_and_statistics": {
+        "raw_archives_bytes": {
+          "images_zip": 9849588527,
+          "xml_zip": 12240654,
+          "mat_zip": 2098829
+        },
+        "raw_archives_total_mb": 9406.97,
+        "extracted_size_gb": 14.6,
+        "total_extracted_sequences": 100,
+        "annotated_test_sequences": 40,
+        "unannotated_training_sequences": 60,
+        "physical_test_frames_on_disk": 56340,
+        "frames_in_test_mat_matrices": 56340,
+        "frames_declared_in_test_xml": 56167,
+        "resolution": "960x540 (100% of frames across all 40 test sequences)",
+        "total_vehicle_bounding_boxes": 675774,
+        "vehicle_type_distribution": {
+          "car": 548555,
+          "bus": 71785,
+          "van": 38519,
+          "others": 16915
+        },
+        "environmental_conditions": {
+          "weather": {
+            "cloudy": 11,
+            "night": 12,
+            "rainy": 9,
+            "sunny": 8
+          },
+          "camera_state": {
+            "stable": 31,
+            "unstable": 9
+          }
+        },
+        "total_ignored_regions": 40
+      },
+      "critical_audit_findings": {
+        "xml_vs_disk_frame_discrepancy_root_cause": "The XML annotations declare 56,167 frames whereas disk and MAT matrices have exactly 56,340 frames (difference of 173 frames). Empirical analysis of XML schemas and MAT matrices revealed that in UA-DETRAC XML, frames with ZERO target vehicles are completely omitted from the XML document. The MAT files retain full matrix dimensions (e.g. 1120x30 for MVI_39051) with all-zero coordinates. Specifically, 173 empty frames are omitted across 6 sequences: MVI_39051 (69 frames, 992-1060), MVI_39211 (94 frames), MVI_39271 (4 frames), MVI_40743 (1 frame), MVI_40763 (4 frames), and MVI_40793 (1 frame).",
+        "integration_mandate_for_frame_matching": "The detection evaluation engine must iterate over the 40 test sequences only and treat missing frame numbers in XML as valid negative frames (empty scenes with 0 expected ground-truth detections) rather than logging file missing errors.",
+        "training_sequences_in_image_folder": "DETRAC-Images contains 100 sequence folders (both train and test sequences), but only 40 test sequences have annotations in the test set. Integration logic must explicitly filter sequence folders using the 40 test XML/MAT sequence names.",
+        "reid_and_indian_traffic_limitations": "UA-DETRAC consists of independent single-camera overpass sequences with ZERO cross-camera identity links (cannot evaluate Re-ID or trajectory stitching). Furthermore, it completely lacks motorcycles/two-wheelers and auto-rickshaws, which constitute over 70% of Indian urban traffic."
+      },
+      "supported_metrics": [
+        "Vehicle Detection Precision, Recall, and F1-score",
+        "mAP@0.50 and mAP@0.50:0.95 across car, bus, van",
+        "Environmental Robustness (clear vs night vs rain)",
+        "Single-Camera Multi-Object Tracking Accuracy (MOTA) & Precision (MOTP)"
+      ]
+    },
+    {
+      "dataset_id": "ufpr_alpr",
+      "dataset_version": "UFPR-ALPR (IJCNN 2018 Release)",
+      "name": "UFPR-ALPR Dataset",
+      "primary_role": "End-to-End License Plate Detection, 4-Corner Localization & Character Latin OCR",
+      "acquisition_status": "ACQUIRED_AND_AUDITED",
+      "local_presence": "EXTRACTED_LOCALLY",
+      "local_paths": {
+        "raw_archive": "data/benchmarks/external/ufpr_alpr/raw/yj4Iu2-UFPR-ALPR.zip",
+        "extracted_root": "data/benchmarks/external/ufpr_alpr/extracted/UFPR-ALPR dataset/",
+        "training_dir": "data/benchmarks/external/ufpr_alpr/extracted/UFPR-ALPR dataset/training/",
+        "validation_dir": "data/benchmarks/external/ufpr_alpr/extracted/UFPR-ALPR dataset/validation/",
+        "testing_dir": "data/benchmarks/external/ufpr_alpr/extracted/UFPR-ALPR dataset/testing/",
+        "readme": "data/benchmarks/external/ufpr_alpr/extracted/UFPR-ALPR dataset/README.txt",
+        "validation_script": "data/benchmarks/external/ufpr_alpr/validate_ufpr.py"
+      },
+      "official_source": {
+        "portal_url": "https://web.inf.ufpr.br/vri/databases/ufpr-alpr/",
+        "repository_url": "https://github.com/raysonlaroca/ufpr-alpr-dataset",
+        "institutional_source": "Vision, Robotics and Imaging (VRI) Laboratory, Federal University of Paraná (UFPR), Brazil",
+        "authors": "Rayson Laroca, Evair Severo, Luiz A. Zanlorensi, Luiz S. Oliveira, Gabriel Resende Gonçalves, William Robson Schwartz, David Menotti",
+        "publication": "A Robust Real-Time Automatic License Plate Recognition Based on the YOLO Detector (IJCNN 2018)"
+      },
+      "licensing": {
+        "license_name": "UFPR-ALPR Academic Non-Commercial License",
+        "commercial_use_permitted": false,
+        "redistribution_permitted": false,
+        "modification_permitted": false,
+        "academic_noncommercial_only": true,
+        "strict_prohibition_clause": "Without the expressed permission of the VRI Lab, redistribution, modification, and commercial usage are strictly prohibited.",
+        "compliance_notes": "Internal runtime ingestion only. Original files and directory structures remain strictly unmodified."
+      },
+      "loader_integration": {
+        "loader_class": "loaders.ufpr_alpr.UfprAlprLoader",
+        "supported_splits": ["training", "validation", "testing"],
+        "evaluation_modes": ["official (1800 test frames)", "decontaminated (1740 test frames)"],
+        "leaked_track_quarantine": ["track0110", "track0140"],
+        "dynamic_dimension_support": true,
+        "validation_status": "PASSED (4,500 verified samples)"
+      },
+      "verified_scale_and_statistics": {
+        "raw_archive_bytes": 9736047209,
+        "raw_archive_mb": 9285.05,
+        "extracted_size_gb": 11.5,
+        "total_vehicle_tracks": 150,
+        "frames_per_track": 30,
+        "total_images": 4500,
+        "total_text_annotations": 4500,
+        "matched_pairs": 4500,
+        "splits": {
+          "training": {
+            "tracks": 60,
+            "images": 1800,
+            "annotations": 1800,
+            "unique_plates": 60,
+            "vehicle_types": {"car": 1440, "motorcycle": 360},
+            "cameras": {"GoPro Hero4 Silver": 600, "Huawei P9 Lite": 600, "iPhone 7 Plus": 600}
+          },
+          "validation": {
+            "tracks": 30,
+            "images": 900,
+            "annotations": 900,
+            "unique_plates": 30,
+            "vehicle_types": {"car": 720, "motorcycle": 180},
+            "cameras": {"GoPro Hero4 Silver": 300, "Huawei P9 Lite": 300, "iPhone 7 Plus": 300}
+          },
+          "testing": {
+            "tracks": 60,
+            "images": 1800,
+            "annotations": 1800,
+            "unique_plates": 60,
+            "vehicle_types": {"car": 1440, "motorcycle": 360},
+            "cameras": {"GoPro Hero4 Silver": 600, "Huawei P9 Lite": 600, "iPhone 7 Plus": 600}
+          }
+        },
+        "total_unique_physical_vehicles": 148,
+        "total_character_bounding_boxes": 31500,
+        "characters_per_plate": 7,
+        "plate_syntax": "Brazilian 3-letter + 4-digit alphanumeric (e.g. AXV8804)",
+        "cameras_breakdown": {
+          "GoPro Hero4 Silver": 1500,
+          "Huawei P9 Lite": 1500,
+          "iPhone 7 Plus": 1500
+        },
+        "vehicle_type_breakdown": {
+          "car": 3600,
+          "motorcycle": 900
+        },
+        "image_dimension_distribution": {
+          "1920x1080": 4439,
+          "1920x1088": 61
+        }
+      },
+      "critical_audit_findings": {
+        "train_test_identity_leakage": "CRITICAL GROUND-TRUTH FINDING: The official dataset documentation claims 150 unique vehicles across 150 tracks. However, empirical plate string and metadata auditing revealed exactly 148 unique vehicles. Two physical vehicles were captured twice (using different cameras at different times) and placed into BOTH training and testing splits: (1) AVA1466 (Mercedes-Benz OF-1418 Neobus Mega bus 2011) in training/track0011 (GoPro) and testing/track0140 (iPhone); (2) BBO8514 (Yamaha XTZ motorcycle 2017) in training/track0059 (iPhone) and testing/track0110 (GoPro). Evaluating directly on the official test set without decontamination leaks 60 test images (two vehicle identities) already seen during training.",
+        "integration_mandate_for_leakage": "The platform evaluation suite must implement dual reporting: (1) Official Split Mode (reproduces published baseline literature), and (2) Decontaminated Split Mode (excludes track0140 and track0110 from test, or isolates them into a known seen-vehicle partition).",
+        "image_dimension_anomaly_1088p": "While 4,439 images are standard 1920x1080 Full HD, exactly 61 images have dimensions 1920x1088 (resulting from 16x16 macroblock padding during video encoding). This affects validation/track0072 (all 30 frames), testing/track0113 (frame [30]), and testing/track0114 (all 30 frames). Preprocessors that assume hardcoded 1080 height will introduce vertical scaling errors of 8 pixels (~0.74%). Bounding box normalization must dynamically read actual image height from image metadata.",
+        "exact_duplicate_frames": "SHA-256 hashing identified exactly 1 bitwise identical frame pair: validation/track0090/track0090[14].png and validation/track0090/track0090[15].png share identical hash dd28c7acda93... All other 4,498 images are visually and bit-distinct.",
+        "operational_domain_limitations": "UFPR-ALPR was recorded from cameras mounted inside a moving patrol car at windshield/eye level (1.5-2m height). It does NOT represent overhead fixed pole-mounted CCTV surveillance (5-10m height, steep pitch angle). Furthermore, plates follow Brazilian syntax (3 letters + 4 digits), which verifies Latin alphanumeric OCR models (EasyOCR, CRNN) but does not substitute for Indian CMVR Rule 50 license plate validation."
+      },
+      "supported_metrics": [
+        "License Plate Bounding Box Detection Rate (IoU >= 0.50)",
+        "Plate Corner Localization Mean Squared Error (MSE)",
+        "Exact Match Recognition Accuracy (Acc_exact)",
+        "Character Error Rate (CER) & Word Error Rate (WER)",
+        "Normalized Levenshtein Distance (NLD)"
+      ]
+    }
+  ]
+}

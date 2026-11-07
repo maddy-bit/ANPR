@@ -1,0 +1,73 @@
+{
+  "veri_776": {
+    "is_valid": true,
+    "duration_seconds": 1.24,
+    "total_samples": 51003,
+    "matched_samples": 51003,
+    "missing_samples": 0,
+    "leakage_detected": false,
+    "summary": {
+      "train_images": 37746,
+      "test_images": 11579,
+      "query_images": 1678,
+      "train_vids": 575,
+      "test_vids": 200,
+      "query_vids": 200,
+      "orphan_files_isolated": 32,
+      "leakage_count": 0
+    },
+    "issues": []
+  },
+  "ua_detrac": {
+    "is_valid": true,
+    "duration_seconds": 23.95,
+    "total_samples": 56340,
+    "matched_samples": 56340,
+    "missing_samples": 0,
+    "leakage_detected": false,
+    "summary": {
+      "test_sequences": 40,
+      "total_frames_on_disk": 56340,
+      "xml_omitted_frames": 173,
+      "total_empty_frames": 173,
+      "total_bounding_boxes": 675774,
+      "box_type_distribution": {
+        "car": 548555,
+        "van": 38519,
+        "bus": 71785,
+        "others": 16915
+      },
+      "resolution": "960x540"
+    },
+    "issues": []
+  },
+  "ufpr_alpr": {
+    "is_valid": true,
+    "duration_seconds": 5.92,
+    "total_samples": 4500,
+    "matched_samples": 4500,
+    "missing_samples": 0,
+    "leakage_detected": true,
+    "official_test_samples": 1800,
+    "decontaminated_test_samples": 1740,
+    "summary": {
+      "total_samples": 4500,
+      "matched_samples": 4500,
+      "dimensions_distribution": {
+        "1920x1080": 4439,
+        "1920x1088": 61
+      },
+      "padded_1088p_images": 61,
+      "unique_plates_train": 60,
+      "unique_plates_val": 30,
+      "unique_plates_test": 60,
+      "total_unique_vehicles": 148,
+      "leaked_test_tracks": [
+        "track0110",
+        "track0140"
+      ],
+      "active_evaluation_mode": "official"
+    },
+    "issues": []
+  }
+}

@@ -2,25 +2,43 @@ spring:
   application:
     name: city-ai-backend
 
+  # Persistent PostgreSQL + PostGIS is the default development database
   datasource:
-    url: ${DB_URL:jdbc:h2:mem:cityaidb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL}
-    driver-class-name: ${DB_DRIVER:org.h2.Driver}
-    username: ${DB_USERNAME:sa}
+    url: ${DB_URL:jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+    username: ${DB_USERNAME:postgres.xzhblfqmjxywoileaopa}
     password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:30000}
+      connection-timeout: ${DB_POOL_CONN_TIMEOUT:10000}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME:1800000}
+      keepalive-time: ${DB_POOL_KEEPALIVE:60000}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
-        dialect: ${DB_DIALECT:org.hibernate.dialect.H2Dialect}
-        format_sql: true
+        dialect: ${DB_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
 
   h2:
     console:
+      enabled: false
+
+  servlet:
+    multipart:
       enabled: true
-      path: /h2-console
+      max-file-size: ${SPRING_MULTIPART_MAX_FILE_SIZE:500MB}
+      max-request-size: ${SPRING_MULTIPART_MAX_REQUEST_SIZE:510MB}
 
   data:
     redis:
@@ -67,6 +85,17 @@ app:
   data-dir: ${DATA_DIR:../data}
   evidence-dir: ${EVIDENCE_DIR:../data/evidence}
   videos-dir: ${VIDEOS_DIR:../videos}
+  seed-cameras: ${SEED_CAMERAS:false}
+  mock-registry:
+    enabled: ${MOCK_REGISTRY_ENABLED:false}
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    local-dir: ${STORAGE_LOCAL_DIR:../data/uploads}
+    max-file-size-mb: ${STORAGE_MAX_FILE_SIZE_MB:500}
+    supabase:
+      url: ${SUPABASE_STORAGE_URL:}
+      service-key: ${SUPABASE_STORAGE_SERVICE_KEY:}
+      bucket: ${SUPABASE_STORAGE_BUCKET:cctv-videos}
 
 logging:
   level:

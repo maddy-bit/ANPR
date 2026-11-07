@@ -62,7 +62,7 @@ const EDGES: [number, number][] = [
 ];
 
 export function VehicleHologram3D({
-  plate = "ET3633P",
+  plate = "",
   vehicleType = "Silver Sedan",
   color = "Silver",
   className = "",

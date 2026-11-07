@@ -3,8 +3,8 @@
  * Implements real Indian vehicle registration certificate (RC / Form 23) data structures,
  * state mappings, and live API registry lookup.
  *
- * NOTE: Only the single designated presentation dummy plate (MH12AB1234) is hardcoded
- * for demonstration. All other vehicle records are fetched live via the VAHAN API.
+ * NOTE: No hardcoded demo plates are stored. Vehicle records are queried live
+ * via the central VAHAN API or return honest not-found / not-configured states.
  */
 
 export interface IndianVehicleRcRecord {
@@ -103,9 +103,8 @@ export const INDIAN_STATE_NAMES: Record<string, string> = {
 const RECORD_CACHE = new Map<string, IndianVehicleRcRecord>();
 
 /**
- * Retrieves the registry record for a vehicle plate.
- * Only the single presentation dummy plate (ET3633P) is hardcoded.
- * All other plates must be fetched live via fetchVehicleRegistryRecord() from the VAHAN API.
+ * Retrieves the registry record for a vehicle plate from the session cache.
+ * All plates are fetched live via fetchVehicleRegistryRecord() from the VAHAN API.
  */
 export function getVehicleRegistryRecord(plateRaw: string): IndianVehicleRcRecord | null {
   const cleanPlate = (plateRaw ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();

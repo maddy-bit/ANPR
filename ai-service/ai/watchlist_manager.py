@@ -28,9 +28,7 @@ class WatchlistManager:
         self.watchlist: Dict[str, WatchlistEntry] = {}
         self.alerts: List[SecurityAlert] = []
 
-        # Seed default watchlist for demonstration
-        self.add_to_watchlist("MH15TC554", owner_name="WANTED_TARGET_01", reason="STOLEN_VEHICLE", severity="CRITICAL")
-        self.add_to_watchlist("KL55R2473", owner_name="WANTED_TARGET_02", reason="SUSPECT_OF_INTEREST", severity="HIGH")
+        # Starts genuinely empty; targets are registered dynamically by operators or via API
 
     def _clean(self, plate: str) -> str:
         return plate.replace("-", "").replace(" ", "").upper()

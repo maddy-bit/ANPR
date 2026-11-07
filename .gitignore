@@ -1,9 +1,13 @@
+# Virtual Environments & Caches
 .labeling_env/
 .venv/
 venv/
+ai-service/venv/
 __pycache__/
 *.pyc
 *.log
+.pytest_cache/
+*/.pytest_cache/
 
 # Build Outputs
 backend/target/
@@ -14,6 +18,12 @@ BOOT-INF/
 backend/BOOT-INF/
 *.jar
 *.war
+dist/
+build/
+
+# External Benchmark Datasets & Vehicle Crop Archives (Kept strictly local)
+data/benchmarks/external/
+data/benchmarks/reid_benchmark_crops/
 
 # Raw Datasets & Large Artifacts
 data/foggy_hazy_raw/
@@ -31,3 +41,15 @@ runs/
 
 data/uploads/
 .demo_pids.json
+
+# Environment variables & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE & Editor Temporary Files
+.idea/
+antigravity-plugin/
+*.suo
+*.user
