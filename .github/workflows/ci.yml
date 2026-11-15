@@ -140,11 +140,16 @@ jobs:
           DB_USERNAME: runner
           DB_PASSWORD: ""
           DB_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/sih_test
+          SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+          SPRING_DATASOURCE_USERNAME: runner
+          SPRING_DATASOURCE_PASSWORD: ""
+          SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           CACHE_TYPE: redis
         run: |
-          java -jar target/backend-*.jar > backend.log 2>&1 &
+          java -jar target/backend-*.jar --spring.profiles.active=postgres > backend.log 2>&1 &
           BACKEND_PID=$!
           trap "kill -9 $BACKEND_PID 2>/dev/null || true" EXIT
 
