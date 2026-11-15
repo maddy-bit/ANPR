@@ -30,11 +30,9 @@ body {
 }
 
 body {
-  background-color: #f4f4f0;
-  color: var(--foreground);
-  font-family: var(--font-jetbrains-mono), monospace;
-  background-image: radial-gradient(#d4d4d8 1.2px, transparent 1.2px);
-  background-size: 20px 20px;
+  background-color: #f5f6f8;
+  color: #0f172a;
+  font-family: var(--font-space-grotesk), Arial, sans-serif;
   overflow-x: hidden;
 }
 
@@ -243,5 +241,253 @@ body {
   .print-dossier th {
     border: 1px solid #555 !important;
     padding: 4px 8px !important;
+  }
+}
+
+.camera-network-marker {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.45);
+  cursor: pointer;
+}
+.camera-network-marker-selected {
+  width: 17px;
+  height: 17px;
+  border: 3px solid #ffffff;
+  outline: 2px solid #0f172a;
+}
+
+.investigation-camera-marker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 3px 6px;
+  color: #0f172a;
+  font: 600 10px var(--font-jetbrains-mono), monospace;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
+  cursor: pointer;
+}
+.investigation-camera-marker-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border: 1px solid #ffffff;
+  border-radius: 50%;
+  outline: 1px solid rgba(15, 23, 42, 0.18);
+}
+.investigation-camera-marker-label {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* City AI Traffic dark operations theme (screen only; print dossier styles remain intact). */
+@media screen {
+  :root {
+    color-scheme: dark;
+    --background: #070d16;
+    --foreground: #dce8f5;
+    --card-bg: #0b1421;
+    --card-border: #26384d;
+    --accent-yellow: #22d3ee;
+    --accent-dark: #07131f;
+  }
+
+  html,
+  body {
+    background: #070d16 !important;
+    color: #dce8f5 !important;
+  }
+
+  body,
+  .min-h-screen,
+  main {
+    background-color: #070d16 !important;
+    color: #dce8f5 !important;
+  }
+
+  .bg-white,
+  .card-3d-light,
+  .neo-box,
+  .neo-box-sm,
+  .plate-3d-light,
+  .plate-box {
+    background-color: #0d1725 !important;
+    color: #dce8f5 !important;
+    border-color: #263b52 !important;
+    box-shadow: none !important;
+  }
+
+  .bg-white\/95,
+  .bg-white\/90,
+  .bg-white\/80 {
+    background-color: rgb(10 19 31 / 94%) !important;
+  }
+
+  .bg-slate-50 {
+    background-color: #0a1421 !important;
+  }
+  .bg-slate-100 {
+    background-color: #122033 !important;
+  }
+  .bg-slate-200 {
+    background-color: #203248 !important;
+  }
+  .bg-slate-300 {
+    background-color: #2b4058 !important;
+  }
+  .bg-slate-900 {
+    background-color: #102239 !important;
+  }
+
+  .text-slate-950,
+  .text-slate-900 {
+    color: #e8f1fb !important;
+  }
+  .text-slate-800 {
+    color: #cad8e8 !important;
+  }
+  .text-slate-700 {
+    color: #b6c7db !important;
+  }
+  .text-slate-600 {
+    color: #98adc5 !important;
+  }
+  .text-slate-500 {
+    color: #7d93ad !important;
+  }
+  .text-slate-400 {
+    color: #667f9c !important;
+  }
+  .text-slate-300 {
+    color: #526b87 !important;
+  }
+
+  .border-slate-100 {
+    border-color: #1a2a3d !important;
+  }
+  .border-slate-200 {
+    border-color: #26384d !important;
+  }
+  .border-slate-300 {
+    border-color: #334b64 !important;
+  }
+  .border-slate-400 {
+    border-color: #46617e !important;
+  }
+  .border-slate-500 {
+    border-color: #55718d !important;
+  }
+
+  .neo-header {
+    background: #101e2d !important;
+    color: #dce8f5 !important;
+    border-color: #2a4058 !important;
+  }
+
+  .neo-btn,
+  .btn-3d-light {
+    background: #12334a !important;
+    border-color: #1b7895 !important;
+    color: #e5faff !important;
+  }
+  .neo-btn:hover,
+  .btn-3d-light:hover {
+    background: #16445f !important;
+    border-color: #22d3ee !important;
+  }
+  .neo-btn-accent {
+    background: #06b6d4 !important;
+    border-color: #0891b2 !important;
+    color: #04121b !important;
+  }
+  .neo-btn-accent:hover {
+    background: #22d3ee !important;
+    border-color: #67e8f9 !important;
+    color: #04121b !important;
+  }
+  .neo-btn-secondary {
+    background: #111e2d !important;
+    border-color: #344b63 !important;
+    color: #cbd9e8 !important;
+  }
+  .neo-btn-secondary:hover {
+    background: #1b2d42 !important;
+    border-color: #22d3ee !important;
+    color: #f0fbff !important;
+  }
+
+  input,
+  select,
+  textarea {
+    color: #e6f0fb;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #6e849e !important;
+    opacity: 1;
+  }
+  select option {
+    background: #0d1725;
+    color: #e6f0fb;
+  }
+
+  .investigation-camera-marker {
+    background: #0c1a2a !important;
+    border-color: #2b4963 !important;
+    color: #d9e8f6 !important;
+    box-shadow: 0 2px 10px rgb(0 0 0 / 40%) !important;
+  }
+  .investigation-camera-marker-dot {
+    outline-color: rgb(34 211 238 / 25%) !important;
+  }
+
+  .maplibregl-ctrl-group {
+    background: #0d1725 !important;
+    border: 1px solid #344b63 !important;
+  }
+  .maplibregl-ctrl-group button {
+    background-color: #0d1725 !important;
+    filter: invert(0.85) hue-rotate(165deg);
+  }
+  .maplibregl-ctrl-attrib {
+    background: rgb(7 13 22 / 85%) !important;
+    color: #91a8c2 !important;
+  }
+  .maplibregl-ctrl-attrib a {
+    color: #67e8f9 !important;
+  }
+
+  .camera-network-marker,
+  .camera-network-marker-selected {
+    box-shadow: 0 0 0 2px #07111d, 0 0 14px rgb(34 211 238 / 25%) !important;
+  }
+
+  .hologram-effect {
+    background: linear-gradient(90deg, transparent 0%, rgb(34 211 238 / 20%) 50%, transparent 100%);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #09121e;
+    border-left-color: #1d3045;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #39536f;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #22a7c5;
+  }
+
+  a {
+    text-underline-offset: 3px;
   }
 }

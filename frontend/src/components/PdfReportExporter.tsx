@@ -24,7 +24,7 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
         timeStyle: "long",
         timeZone: "Asia/Kolkata",
       }),
-      dossierId: `BEL-${summary.vehicle.plate}-${printDate.getTime().toString(36).toUpperCase()}`,
+      dossierId: `REPORT-${printDate.getTime().toString(36).toUpperCase()}`,
     });
     setTimeout(() => {
       window.print();
@@ -33,14 +33,14 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
 
   return (
     <>
-      {/* Print trigger button — visible on screen only */}
+      {/* Print trigger button â€” visible on screen only */}
       <button
         type="button"
         onClick={handleExportPrint}
         className="neo-btn flex w-full items-center justify-center gap-2.5 px-5 py-3.5 sm:py-4 text-sm sm:text-base font-mono font-black uppercase tracking-wider cursor-pointer"
       >
-        <span className="text-base sm:text-lg">📄</span>
-        <span>Export Law Enforcement Dossier</span>
+        <span className="text-base sm:text-lg">ðŸ“„</span>
+        <span>Export Investigation Summary</span>
       </button>
 
       {/*
@@ -52,26 +52,26 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
         <div style={{ borderBottom: "3px solid #000", paddingBottom: "12px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: "18px", fontWeight: "900", textTransform: "uppercase", letterSpacing: "1px" }}>
-              🏙️ City AI Traffic Intelligence — SYS-01
+              ðŸ™ï¸ City AI Traffic Intelligence â€” SYS-01
             </div>
             <div style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginTop: "2px" }}>
-              Official ANPR Vehicle Intelligence &amp; Trajectory Dossier
+              Vehicle Investigation Summary
             </div>
             <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>
-              Bharat Electronics Limited (BEL) · Smart India Hackathon 2026
+              Project information is provided for context
             </div>
           </div>
           <div style={{ textAlign: "right", fontSize: "11px", color: "#6b7280" }}>
-            <div><strong>Generated:</strong> {dossierMeta.generatedAt || summary.lastSeen || "OFFICIAL RECORD"}</div>
-            <div><strong>Classification:</strong> CONFIDENTIAL / LAW ENFORCEMENT</div>
-            <div><strong>Dossier ID:</strong> {dossierMeta.dossierId || `BEL-${summary.vehicle.plate}`}</div>
+            <div><strong>Generated:</strong> {dossierMeta.generatedAt || "Not generated"}</div>
+            <div><strong>Status:</strong> UNOFFICIAL SUMMARY / FOR REVIEW</div>
+            <div><strong>Report ID:</strong> {dossierMeta.dossierId || "Not generated"}</div>
           </div>
         </div>
 
         {/* Vehicle Intelligence */}
         <div style={{ marginBottom: "16px" }}>
           <div style={{ fontSize: "13px", fontWeight: "800", textTransform: "uppercase", borderBottom: "1px solid #d1d5db", paddingBottom: "4px", marginBottom: "10px" }}>
-            🎯 Target Vehicle Intelligence
+            ðŸŽ¯ Target Vehicle Intelligence
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", background: "#f9fafb", padding: "12px", borderRadius: "6px", border: "1px solid #e5e7eb" }}>
             <div>
@@ -88,7 +88,7 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
             </div>
             <div>
               <div style={{ fontSize: "10px", color: "#6b7280", textTransform: "uppercase", fontWeight: "700" }}>Make / Model</div>
-              <div style={{ fontSize: "14px", fontWeight: "700" }}>{summary.vehicle.make || "—"} {summary.vehicle.model || ""}</div>
+              <div style={{ fontSize: "14px", fontWeight: "700" }}>{summary.vehicle.make || "â€”"} {summary.vehicle.model || ""}</div>
             </div>
             <div>
               <div style={{ fontSize: "10px", color: "#6b7280", textTransform: "uppercase", fontWeight: "700" }}>First Detected</div>
@@ -104,17 +104,17 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
         {/* Trajectory Statistics */}
         <div style={{ marginBottom: "16px" }}>
           <div style={{ fontSize: "13px", fontWeight: "800", textTransform: "uppercase", borderBottom: "1px solid #d1d5db", paddingBottom: "4px", marginBottom: "10px" }}>
-            📊 Trajectory Statistics
+            ðŸ“Š Trajectory Statistics
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "10px" }}>
             {[
               { label: "Camera Nodes Visited", value: summary.cameraCount },
               { label: "Total Detections", value: summary.detectionCount },
-              { label: "Estimated Distance", value: trajectory.estimatedDistanceKm ? `${trajectory.estimatedDistanceKm.toFixed(1)} km` : "—" },
-              { label: "Estimated Duration", value: trajectory.estimatedDurationMinutes ? `${trajectory.estimatedDurationMinutes} min` : "—" },
-              { label: "Overall Confidence", value: trajectory.overallConfidence ? `${(trajectory.overallConfidence * 100).toFixed(1)}%` : "—" },
+              { label: "Estimated Distance", value: trajectory.estimatedDistanceKm ? `${trajectory.estimatedDistanceKm.toFixed(1)} km` : "â€”" },
+              { label: "Estimated Duration", value: trajectory.estimatedDurationMinutes ? `${trajectory.estimatedDurationMinutes} min` : "â€”" },
+              { label: "Overall Confidence", value: trajectory.overallConfidence ? `${(trajectory.overallConfidence * 100).toFixed(1)}%` : "â€”" },
               { label: "Route Checkpoints", value: trajectory.points.length },
-              { label: "Cameras Path", value: summary.camerasVisited.join(" → ") || "—" },
+              { label: "Cameras Path", value: summary.camerasVisited.join(" â†’ ") || "â€”" },
               { label: "Warning Flag", value: trajectory.warning || "None" },
             ].map((stat) => (
               <div key={stat.label} style={{ background: "#f3f4f6", padding: "8px", borderRadius: "4px", border: "1px solid #e5e7eb" }}>
@@ -128,7 +128,7 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
         {/* Chronological Waypoints */}
         <div style={{ marginBottom: "16px" }}>
           <div style={{ fontSize: "13px", fontWeight: "800", textTransform: "uppercase", borderBottom: "1px solid #d1d5db", paddingBottom: "4px", marginBottom: "10px" }}>
-            📍 Chronological Trajectory Waypoints
+            ðŸ“ Chronological Trajectory Waypoints
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
             <thead>
@@ -146,19 +146,19 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
               {trajectory.points.map((pt, idx) => (
                 <tr key={idx} style={{ background: idx % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
                   <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb", fontWeight: "700", fontFamily: "monospace" }}>{idx + 1}</td>
-                  <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb", fontWeight: "600" }}>{pt.cameraId} — {pt.cameraName}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb", fontWeight: "600" }}>{pt.cameraId} â€” {pt.cameraName}</td>
                   <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb", fontFamily: "monospace", fontSize: "10px" }}>
                     {new Date(pt.timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
                   </td>
                   <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb", fontFamily: "monospace", fontSize: "10px" }}>
                     {pt.latitude.toFixed(5)}, {pt.longitude.toFixed(5)}
                   </td>
-                  <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb" }}>{pt.direction || "—"}</td>
+                  <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb" }}>{pt.direction || "â€”"}</td>
                   <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb", fontWeight: "700" }}>
-                    {pt.detectionConfidence != null ? `${(pt.detectionConfidence * 100).toFixed(0)}%` : "—"}
+                    {pt.detectionConfidence != null ? `${(pt.detectionConfidence * 100).toFixed(0)}%` : "â€”"}
                   </td>
                   <td style={{ padding: "5px 8px", border: "1px solid #e5e7eb", fontWeight: "700" }}>
-                    {pt.plateConfidence != null ? `${(pt.plateConfidence * 100).toFixed(0)}%` : "—"}
+                    {pt.plateConfidence != null ? `${(pt.plateConfidence * 100).toFixed(0)}%` : "â€”"}
                   </td>
                 </tr>
               ))}
@@ -169,18 +169,17 @@ export function PdfReportExporter({ summary, trajectory }: PdfReportExporterProp
         {/* Footer */}
         <div style={{ marginTop: "24px", paddingTop: "12px", borderTop: "2px solid #000", display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#6b7280" }}>
           <div>
-            <div style={{ fontWeight: "700", color: "#000" }}>Investigating Officer Signature:</div>
-            <div style={{ marginTop: "20px", borderBottom: "1px solid #000", width: "200px" }}></div>
-            <div style={{ marginTop: "4px" }}>Name &amp; Designation</div>
+            <div style={{ fontWeight: "700", color: "#000" }}>Data provenance:</div>
+            <div style={{ marginTop: "4px" }}>Values reflect the observations included above.</div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: "700", color: "#000" }}>Digital Verification Seal</div>
-            <div style={{ fontFamily: "monospace", marginTop: "4px" }}>BEL-TRAFFIC-AUTH-SEC</div>
-            <div style={{ marginTop: "4px" }}>This document is classified CONFIDENTIAL.</div>
-            <div>Unauthorized disclosure is an offence under IT Act 2000.</div>
+            <div style={{ fontWeight: "700", color: "#000" }}>Unofficial application summary</div>
+            <div style={{ marginTop: "4px" }}>Not a government certificate or verification.</div>
+            <div>Not proof of ownership or legal status.</div>
           </div>
         </div>
       </div>
     </>
   );
 }
+

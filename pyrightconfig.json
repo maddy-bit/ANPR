@@ -1,0 +1,20 @@
+{
+  "include": [
+    "ai-service",
+    "scripts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "ai-service/venv",
+    "data"
+  ],
+  "venvPath": "ai-service",
+  "venv": "venv",
+  "extraPaths": [
+    "ai-service",
+    "scripts"
+  ],
+  "reportMissingImports": "none"
+}
+

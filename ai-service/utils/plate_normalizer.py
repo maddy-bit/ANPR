@@ -1,11 +1,11 @@
 """Normalize OCR plate text into a matchable canonical form.
 
-"MH 12 AB 1234", "MH12AB1234", "mh12ab1234" all normalize to "MH12AB1234"
+Common spacing and case variations normalize to the same value.
 so cross-camera matching isn't defeated by spacing/case/OCR noise.
 
 Includes comprehensive Indian registration validation:
 - All 36 State and Union Territory codes
-- Standard format: SS DD LL(L) DDDD (e.g. MH12AB1234, DL1CA1234)
+- Standard format: SS DD LL(L) DDDD (state, district, series, and serial components)
 - Bharat Series (BH): YY BH #### XX (e.g. 22BH1234AA)
 """
 
@@ -61,7 +61,7 @@ def is_plausible_indian_plate(normalized: str) -> bool:
     Check if a normalized plate string follows standard Indian syntax or BH series.
 
     Returns True for:
-      - Standard format: SS DD LL(L) DDDD (e.g. MH12AB1234, DL1CA1234, KL55R2473)
+      - Standard format: SS DD LL(L) DDDD (state, district, series, and serial components)
       - Bharat Series: YY BH #### XX (e.g. 22BH1234AA, 21BH9999AB)
     """
     if not normalized or len(normalized) < 6 or len(normalized) > 12:
@@ -71,7 +71,7 @@ def is_plausible_indian_plate(normalized: str) -> bool:
     if _BH_SERIES_RE.match(normalized):
         return True
 
-    # Check standard format: e.g. MH12AB1234 or DL1C1234
+    # Check the standard state, district, series, and serial components.
     m = _STANDARD_PLATE_RE.match(normalized)
     if m:
         state = m.group(1)
@@ -129,3 +129,4 @@ def parse_indian_plate(raw_text: str) -> ParsedPlate:
         is_bh_series=False,
         validation_reason="Does not match standard Indian or BH series format",
     )
+

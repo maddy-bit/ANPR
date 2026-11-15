@@ -1,6 +1,6 @@
 """
 SIH26127 Traffic Intelligence & Vehicle Investigation Platform
-Phase B, Batch B3.2 — UFPR-ALPR License Plate Detection & OCR Dataset Loader
+Phase B, Batch B3.2 â€” UFPR-ALPR License Plate Detection & OCR Dataset Loader
 
 Implements strict read-only ingestion for UFPR-ALPR:
 - Parses camera, vehicle bounding box, make/model/year/type, plate string, 4 corners, and 7 character boxes.
@@ -101,12 +101,8 @@ class UfprAlprLoader(BaseDatasetLoader):
 
     SUPPORTED_SPLITS = ["training", "validation", "testing"]
 
-    # Tracks identified in Batch B3.1 that leak vehicles seen in training into testing
+    # Track identifiers are evaluation metadata; no plate values are embedded.
     LEAKED_TEST_TRACKS = frozenset(["track0110", "track0140"])
-    LEAKED_PLATE_INFO = {
-        "track0110": {"plate": "BBO8514", "train_source": "training/track0059", "vehicle": "Yamaha XTZ (2017)"},
-        "track0140": {"plate": "AVA1466", "train_source": "training/track0011", "vehicle": "Mercedes-Benz bus (2011)"},
-    }
 
     def __init__(
         self,
@@ -359,7 +355,6 @@ class UfprAlprLoader(BaseDatasetLoader):
         ):
             raise LoaderError(
                 f"Track '{track_id}' is excluded in DECONTAMINATED mode due to training split leakage. "
-                f"Plate: {self.LEAKED_PLATE_INFO[track_id]['plate']}"
             )
 
         track_dir = self.root_path / split / track_id
@@ -511,3 +506,4 @@ class UfprAlprLoader(BaseDatasetLoader):
             result.add_issue(f"Expected 148 unique vehicles across 150 tracks, found {len(set(track_plates.values()))}")
 
         return result
+

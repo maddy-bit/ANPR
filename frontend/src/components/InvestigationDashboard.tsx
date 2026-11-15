@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ApiError,
@@ -17,7 +18,6 @@ import { VehicleSearchPanel, type SearchMode } from "./VehicleSearchPanel";
 import { VehicleIntelligencePanel } from "./VehicleIntelligencePanel";
 import { DetectionTimeline } from "./DetectionTimeline";
 import { EvidenceViewer } from "./EvidenceViewer";
-import { LiveCameraGridModal } from "./LiveCameraGridModal";
 
 const InvestigationMap = dynamic(
   () => import("./InvestigationMap").then((mod) => mod.InvestigationMap),
@@ -44,8 +44,6 @@ import { VehicleRegistryModal } from "./VehicleRegistryModal";
 
 export function InvestigationDashboard() {
   const [cameras, setCameras] = useState<CameraDto[]>([]);
-  const [camerasLoading, setCamerasLoading] = useState(true);
-  const [camerasError, setCamerasError] = useState<string | null>(null);
   const [searchState, setSearchState] = useState<SearchState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<VehicleSummaryDto | null>(null);
@@ -53,7 +51,6 @@ export function InvestigationDashboard() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [replayToken] = useState(0);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
-  const [isCameraGridOpen, setIsCameraGridOpen] = useState(false);
   const [isVideoIngestOpen, setIsVideoIngestOpen] = useState(false);
   const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false);
   const [customVideoUrls, setCustomVideoUrls] = useState<Record<string, string>>({});
@@ -61,20 +58,12 @@ export function InvestigationDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    getCameras()
+    getCameras({ mode: "all" })
       .then((cams) => {
-        if (!cancelled) {
-          setCameras(cams);
-          setCamerasLoading(false);
-          setCamerasError(null);
-        }
+        if (!cancelled) setCameras(cams);
       })
-      .catch((err) => {
-        if (!cancelled) {
-          setCameras([]);
-          setCamerasLoading(false);
-          setCamerasError(err instanceof Error ? err.message : "Failed to load camera network");
-        }
+      .catch(() => {
+        if (!cancelled) setCameras([]);
       });
     return () => {
       cancelled = true;
@@ -152,7 +141,31 @@ export function InvestigationDashboard() {
     setLiveStatus("idle");
 
     try {
-      const summaryResult = await getVehicleSummary(plate);
+      const cameraMode = mode === "historical" ? "historic" : mode === "combined" ? "hybrid" : "live";
+      const modeCameras = await getCameras({ mode: cameraMode });
+      setCameras(modeCameras);
+      let summaryResult: VehicleSummaryDto;
+      try {
+        summaryResult = await getVehicleSummary(plate);
+      } catch (lookupError) {
+        if (!(lookupError instanceof ApiError && lookupError.isNotFound) || mode === "historical") {
+          throw lookupError;
+        }
+        summaryResult = {
+          vehicle: {
+            plate,
+            vehicleType: null,
+            color: null,
+            make: null,
+            model: null,
+          },
+          firstSeen: null,
+          lastSeen: null,
+          cameraCount: 0,
+          camerasVisited: [],
+          detectionCount: 0,
+        };
+      }
       if (overrideVehicleType) {
         summaryResult.vehicle.vehicleType = overrideVehicleType;
       }
@@ -198,13 +211,11 @@ export function InvestigationDashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-      {/* Sharp Neo-Brutalist Action Strip */}
-      <div className="neo-box p-3 sm:px-4 sm:py-3.5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-600" />
-          <span className="text-sm sm:text-base font-mono font-bold text-slate-950 tracking-wide uppercase">
-            Active Multi-Camera Tracking
-          </span>
+      {/* Investigation actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+        <div>
+          <h1 className="text-base font-semibold text-slate-950">Vehicle investigation</h1>
+          <p className="mt-0.5 text-xs text-slate-500">Case-scoped search across stored sightings and configured camera sources.</p>
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -213,17 +224,14 @@ export function InvestigationDashboard() {
             onClick={() => setIsVideoIngestOpen(true)}
             className="neo-btn-accent flex items-center gap-2 px-4 py-2.5 text-sm font-mono font-bold uppercase cursor-pointer"
           >
-            <span>📹</span>
-            <span>Ingest Video Feed</span>
+            <span>Recorded footage</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setIsCameraGridOpen(true)}
-            className="neo-btn-secondary flex items-center gap-2 px-4 py-2.5 text-sm font-mono font-bold uppercase cursor-pointer"
+          <Link
+            href="/camera-network"
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <span>🎥</span>
-            <span>Camera Grid{cameras.length > 0 ? ` (${cameras.length})` : ''}</span>
-          </button>
+            Camera network{cameras.length > 0 ? ` (${cameras.length})` : ""}
+          </Link>
           <button
             type="button"
             onClick={() => setIsRegistryModalOpen(true)}
@@ -236,7 +244,7 @@ export function InvestigationDashboard() {
       </div>
 
       {/* Main 3-Column Layout */}
-      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_1fr_360px] xl:grid-cols-[380px_1fr_380px]">
+      <div className="grid flex-1 grid-cols-1 items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         {/* Left Column: Target Search & Surveillance Controls */}
         <div className="flex flex-col gap-4">
           <VehicleSearchPanel onSearch={handleSearch} isSearching={searchState === "searching"} />
@@ -257,7 +265,7 @@ export function InvestigationDashboard() {
                   <span>Ready for Target Input</span>
                 </div>
                 <p className="text-sm text-slate-800 leading-relaxed font-medium">
-                  Enter a vehicle registration number above, then click <strong className="text-slate-950 font-bold font-mono">⚡ Reconstruct 3D Trajectory</strong> to begin multi-camera tracking.
+                  Enter a vehicle registration number and select an investigation mode. Live processing requires accessible, supported camera feeds.
                 </p>
               </motion.div>
             )}
@@ -304,16 +312,21 @@ export function InvestigationDashboard() {
                 className="flex flex-col gap-3.5"
               >
                 {isLive && (
-                  <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm font-mono font-bold text-amber-950">
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3.5 py-3">
+                    <div className="flex items-center justify-between gap-3 text-sm font-semibold text-amber-950">
                     <div className="flex items-center gap-2">
                       <span className="relative flex h-2.5 w-2.5">
                         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
                       </span>
                       <span>
-                        {liveStatus === "connecting" ? "CONNECTING WEBSOCKET…" : "LIVE RADAR REPLAY ACTIVE"}
+                        {liveStatus === "connecting" ? "Connecting to live detection events…" : "Live detection event channel connected"}
                       </span>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-xs bg-amber-500 text-black font-black">LIVE</span>
+                    <span className="rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-amber-900">EVENTS</span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-amber-900">
+                      This channel receives detections already processed by SIH. It does not itself connect to camera feeds or start AI processing. Manage source access in Data Sources and camera availability in Camera Network.
+                    </p>
                   </div>
                 )}
                 <VehicleIntelligencePanel summary={summary} trajectory={trajectory} />
@@ -323,8 +336,8 @@ export function InvestigationDashboard() {
           </AnimatePresence>
         </div>
 
-        {/* Center Column: 3D Map, Trajectory Player & VAHAN Vehicle Registry */}
-        <div className="min-h-[480px] flex flex-col gap-4">
+        {/* Map-first investigation workspace */}
+        <div className="min-h-[70vh] flex flex-col gap-4">
           <InvestigationMap
             cameras={cameras}
             points={points}
@@ -332,6 +345,9 @@ export function InvestigationDashboard() {
             onSelectPoint={setSelectedIndex}
             replayToken={replayToken}
           />
+          <p className="px-1 text-xs leading-5 text-slate-500">
+            Dashed map line, when present, is an estimated road-network connection between stored sightings. It is not evidence of the vehicle&apos;s exact path.
+          </p>
           {points.length > 0 && (
             <InteractiveTrajectoryPlayer
               points={points}
@@ -345,7 +361,7 @@ export function InvestigationDashboard() {
         </div>
 
         {/* Right Column: Timeline & Forensic CCTV Viewer */}
-        <div className="flex flex-col gap-4 overflow-y-auto p-1 -m-1">
+        <div className="flex flex-col gap-4 p-1 lg:col-span-2 lg:grid lg:grid-cols-2 lg:items-start">
           <DetectionTimeline points={points} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
           {points.length > 0 && selectedPoint ? (
             <EvidenceViewer
@@ -371,15 +387,6 @@ export function InvestigationDashboard() {
         </div>
       </div>
 
-      {/* 12-Camera Multi-Screen Modal */}
-      <LiveCameraGridModal
-        isOpen={isCameraGridOpen}
-        onClose={() => setIsCameraGridOpen(false)}
-        cameras={cameras}
-        targetVehicleType={summary?.vehicle.vehicleType ?? trajectory?.vehicle.vehicleType ?? "Sedan"}
-        onTargetDetected={(plate) => handleSearch(plate, "historical")}
-      />
-
       {/* CCTV Video Feed Ingestion Modal */}
       <VideoIngestionModal
         isOpen={isVideoIngestOpen}
@@ -392,6 +399,7 @@ export function InvestigationDashboard() {
 
       {/* Indian Vehicle Registry VAHAN Modal */}
       <VehicleRegistryModal
+        key={`${isRegistryModalOpen ? "open" : "closed"}:${summary?.vehicle.plate ?? ""}`}
         isOpen={isRegistryModalOpen}
         onClose={() => setIsRegistryModalOpen(false)}
         initialPlate={summary?.vehicle.plate ?? ""}

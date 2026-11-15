@@ -3,12 +3,17 @@ package com.cityai.backend.controller;
 import com.cityai.backend.dto.CandidateAssociationResponseDto;
 import com.cityai.backend.dto.DetectionIngestRequest;
 import com.cityai.backend.dto.VehicleDetectionDto;
+import com.cityai.backend.exception.IdempotencyConflictException;
 import com.cityai.backend.service.CandidateAssociationService;
 import com.cityai.backend.service.DetectionIngestionService;
 import jakarta.validation.Valid;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,17 +41,45 @@ public class DetectionController {
 
     @PostMapping("/ingest")
     public ResponseEntity<VehicleDetectionDto> ingest(@Valid @RequestBody DetectionIngestRequest request) {
+        var result = ingestionService.ingestBatchWithStatus(List.of(request));
+        if (result != null && !result.detections().isEmpty()) {
+            var det = result.detections().get(0);
+            var status = result.statuses().get(0);
+            var dto = VehicleDetectionDto.from(det, status);
+            HttpStatus httpStatus = "CREATED".equals(status) ? HttpStatus.CREATED : HttpStatus.OK;
+            return ResponseEntity.status(httpStatus).body(dto);
+        }
+        // Fallback for test harnesses that mock ingest() directly
         var saved = ingestionService.ingest(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(VehicleDetectionDto.from(saved));
+        return ResponseEntity.status(HttpStatus.CREATED).body(VehicleDetectionDto.from(saved, "CREATED"));
     }
 
     @PostMapping("/ingest/batch")
     public ResponseEntity<List<VehicleDetectionDto>> ingestBatch(@Valid @RequestBody List<DetectionIngestRequest> requests) {
-        List<VehicleDetectionDto> saved = requests.stream()
-                .map(ingestionService::ingest)
-                .map(VehicleDetectionDto::from)
+        var result = ingestionService.ingestBatchWithStatus(requests);
+        if (result != null && !result.detections().isEmpty()) {
+            List<VehicleDetectionDto> dtos = new ArrayList<>(result.detections().size());
+            for (int i = 0; i < result.detections().size(); i++) {
+                dtos.add(VehicleDetectionDto.from(result.detections().get(i), result.statuses().get(i)));
+            }
+            HttpStatus httpStatus = result.hasAnyCreated() ? HttpStatus.CREATED : HttpStatus.OK;
+            return ResponseEntity.status(httpStatus).body(dtos);
+        }
+        var saved = ingestionService.ingestBatch(requests);
+        List<VehicleDetectionDto> dtos = saved.stream()
+                .map(d -> VehicleDetectionDto.from(d, "CREATED"))
                 .toList();
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(dtos);
+    }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleIdempotencyConflict(IdempotencyConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "error", "IDEMPOTENCY_CONFLICT",
+                "message", ex.getMessage() != null ? ex.getMessage() : "Idempotency conflict",
+                "idempotencyKey", ex.getIdempotencyKey() != null ? ex.getIdempotencyKey() : "",
+                "timestamp", Instant.now().toString()
+        ));
     }
 
     /**

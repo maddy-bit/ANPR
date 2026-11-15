@@ -14,6 +14,7 @@ by weighting by cluster size rather than pure average.
 """
 
 from __future__ import annotations
+from typing import Any
 
 from dataclasses import dataclass
 
@@ -83,14 +84,15 @@ def _dominant_color_kmeans(
     # K-means clustering
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
     try:
+        best_labels: Any = None
         _, labels, centers = cv2.kmeans(
-            hsv, k, None, criteria, 3, cv2.KMEANS_PP_CENTERS
+            hsv, k, best_labels, criteria, 3, cv2.KMEANS_PP_CENTERS
         )
     except cv2.error:
         return _DEFAULT_COLOR, 0.0
 
     # Find largest cluster
-    counts = np.bincount(labels.flatten())
+    counts = np.bincount(labels.flatten().astype(np.int32))
     dominant_idx = int(np.argmax(counts))
     dominant_center = centers[dominant_idx]
     dominant_fraction = counts[dominant_idx] / max(len(labels), 1)

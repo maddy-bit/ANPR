@@ -2,7 +2,9 @@ package com.cityai.backend.repository;
 
 import com.cityai.backend.model.VehicleDetection;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,6 +14,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface VehicleDetectionRepository extends JpaRepository<VehicleDetection, Long> {
+
+    Optional<VehicleDetection> findByIdempotencyKey(String idempotencyKey);
+
+    List<VehicleDetection> findByIdempotencyKeyIn(Collection<String> idempotencyKeys);
 
     List<VehicleDetection> findByVehicle_PlateOrderByTimestampAsc(String plate);
 

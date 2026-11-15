@@ -190,15 +190,15 @@ export function AnalyticsDashboard() {
           />
         </StatCard>
 
-        <StatCard title="Corridor Velocity">
+        <StatCard title="Observed Vehicle Speed">
           <BigStat
-            label="Kinematic Flow"
+            label="Recorded Speed"
             value={
-              data.averageTransitionSpeedKmh != null
-                ? `${data.averageTransitionSpeedKmh.toFixed(0)} km/h`
+              data.averageObservedSpeedKmh != null
+                ? `${data.averageObservedSpeedKmh.toFixed(0)} km/h`
                 : "—"
             }
-            sublabel="Inter-Node Average"
+            sublabel="Average of stored speed samples"
           />
         </StatCard>
       </div>

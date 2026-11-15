@@ -21,7 +21,7 @@ public class Vehicle {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Normalized registration number, e.g. "MH12AB1234". */
+    /** Normalized registration number supplied by verified OCR or an authorized query. */
     @Column(nullable = false, unique = true)
     private String plate;
 
@@ -86,3 +86,4 @@ public class Vehicle {
         this.model = model;
     }
 }
+

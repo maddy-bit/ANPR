@@ -1,7 +1,6 @@
 /**
- * Client-Side PDF Generation for Official Government of India
- * VAHAN / Parivahan Vehicle Registration Certificate (Form 23).
- * Uses jsPDF to render a high-fidelity official government document.
+ * Client-side PDF generation for a third-party vehicle registry lookup summary.
+ * This is not an official RC/Form 23, government-issued document, or digital verification.
  */
 
 import { jsPDF } from "jspdf";
@@ -21,7 +20,13 @@ function cleanText(input: unknown): string {
     .trim();
 }
 
-export function generateRcPdf(record: IndianVehicleRcRecord): void {
+export function generateRcPdf(record: IndianVehicleRcRecord, includeSensitiveDetails = false): void {
+  // Export masked personal/vehicle identifiers by default, matching the UI's privacy default.
+  const ownerName = includeSensitiveDetails ? record.ownerName : record.maskedOwnerName;
+  const fatherName = includeSensitiveDetails ? record.fatherHusbandName : record.maskedFatherName;
+  const ownerAddress = includeSensitiveDetails ? record.permanentAddress : record.maskedAddress;
+  const chassisNumber = includeSensitiveDetails ? record.chassisNumber : record.maskedChassisNumber;
+  const engineNumber = includeSensitiveDetails ? record.engineNumber : record.maskedEngineNumber;
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -37,7 +42,6 @@ export function generateRcPdf(record: IndianVehicleRcRecord): void {
   const borderGrey = [180, 190, 205];
   const tableBg = [248, 250, 252];
   const goldAccent = [180, 83, 9];
-  const greenActive = [16, 185, 129];
 
   // 1. Outer Border & Watermark Seal
   doc.setDrawColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
@@ -54,30 +58,30 @@ export function generateRcPdf(record: IndianVehicleRcRecord): void {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
-  doc.text("GOVERNMENT OF INDIA", pageWidth / 2, y, { align: "center" });
+  doc.text("VEHICLE REGISTRY LOOKUP SUMMARY", pageWidth / 2, y, { align: "center" });
   y += 4.5;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(goldAccent[0], goldAccent[1], goldAccent[2]);
-  doc.text("MINISTRY OF ROAD TRANSPORT & HIGHWAYS (MoRTH)", pageWidth / 2, y, { align: "center" });
+  doc.text("THIRD-PARTY PROVIDER RESPONSE • NOT GOVERNMENT-ISSUED", pageWidth / 2, y, { align: "center" });
   y += 4;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(70, 80, 95);
-  doc.text("VAHAN 4.0 CENTRAL REGISTRY • PARIVAHAN SEWA (parivahan.gov.in)", pageWidth / 2, y, { align: "center" });
+  doc.text("SOURCE: CONFIGURED VAHAN DATA PROVIDER (RAPIDAPI)", pageWidth / 2, y, { align: "center" });
   y += 4.5;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
-  doc.text("FORM 23 [Refer Rule 48]", pageWidth / 2, y, { align: "center" });
+  doc.text("UNOFFICIAL DATA EXTRACT", pageWidth / 2, y, { align: "center" });
   y += 3.8;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("CERTIFICATE OF REGISTRATION", pageWidth / 2, y, { align: "center" });
+  doc.text("NOT A CERTIFICATE OF REGISTRATION", pageWidth / 2, y, { align: "center" });
   y += 5;
 
   // Top Divider
@@ -110,13 +114,13 @@ export function generateRcPdf(record: IndianVehicleRcRecord): void {
   doc.setTextColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
   doc.text(record.formattedPlate, plateBoxX + 47, y + 8.5, { align: "center" });
 
-  // Status Chip next to plate
-  doc.setFillColor(greenActive[0], greenActive[1], greenActive[2]);
-  doc.roundedRect(margin + contentWidth - 30, y + 2, 26, 8, 1, 1, "F");
+  // Neutral source status; do not imply government validation.
+  doc.setFillColor(100, 116, 139);
+  doc.roundedRect(margin + contentWidth - 34, y + 2, 30, 8, 1, 1, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(255, 255, 255);
-  doc.text("RC ACTIVE", margin + contentWidth - 17, y + 7, { align: "center" });
+  doc.text(cleanText(record.rcStatus), margin + contentWidth - 19, y + 7, { align: "center" });
 
   y += plateBoxHeight + 5;
 
@@ -180,15 +184,15 @@ export function generateRcPdf(record: IndianVehicleRcRecord): void {
   y = drawSectionHeader("PART A: REGISTRATION & JURISDICTION PARTICULARS", y);
   y = drawRow2Col("Registering Authority:", record.registeringAuthority, "State / Territory:", record.state, y, true);
   y = drawRow2Col("Registration Date:", record.registrationDate, "RC Status Date:", record.rcStatusDate, y);
-  y = drawRow2Col("Fitness Valid Upto:", record.fitnessUpto, "MV Tax Status:", record.taxUpto, y, true);
+  y = drawRow2Col("Fitness Validity:", `${record.fitnessUpto} (${record.fitnessStatus})`, "MV Tax Date:", `${record.taxUpto} (${record.taxStatus})`, y, true);
   y += 2;
 
   // -------------------------------------------------------------
   // PART B: REGISTERED OWNER PARTICULARS
   // -------------------------------------------------------------
   y = drawSectionHeader("PART B: REGISTERED OWNER PARTICULARS", y);
-  y = drawRow2Col("Owner Name:", record.ownerName, "Owner Serial:", record.ownerSerial, y, true);
-  y = drawRow2Col("Father / Husband Name:", record.fatherHusbandName, "Financier Status:", record.financingStatus, y);
+  y = drawRow2Col("Owner Name:", ownerName || "Not provided", "Owner Serial:", record.ownerSerial, y, true);
+  y = drawRow2Col("Father / Husband Name:", fatherName || "Not provided", "Financier Status:", record.financingStatus, y);
 
   // Address spanning row
   doc.setFillColor(tableBg[0], tableBg[1], tableBg[2]);
@@ -200,12 +204,12 @@ export function generateRcPdf(record: IndianVehicleRcRecord): void {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
   doc.setTextColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
-  const splitAddress = doc.splitTextToSize(cleanText(record.permanentAddress), contentWidth - 52);
+  const splitAddress = doc.splitTextToSize(cleanText(ownerAddress || "Not provided"), contentWidth - 52);
   doc.text(splitAddress, margin + 44, y + 4);
   y += 10;
 
   if (record.hypothecationBank) {
-    y = drawRow2Col("Hypothecated To (Loan):", record.hypothecationBank, "RTO NOC Clearance:", "No Objection Issued", y, true);
+    y = drawRow2Col("Hypothecation (provider field):", record.hypothecationBank, "RTO NOC Clearance:", "Not provided by upstream source", y, true);
   }
   y += 2;
 
@@ -215,9 +219,9 @@ export function generateRcPdf(record: IndianVehicleRcRecord): void {
   y = drawSectionHeader("PART C: VEHICLE TECHNICAL & STRUCTURAL SPECIFICATIONS", y);
   y = drawRow2Col("Maker / Manufacturer:", record.maker, "Model Name:", record.model, y, true);
   y = drawRow2Col("Vehicle Class:", record.vehicleClass, "Body Type:", record.bodyType, y);
-  y = drawRow2Col("Chassis Number (VIN):", record.chassisNumber, "Engine / Motor No:", record.engineNumber, y, true);
+  y = drawRow2Col("Chassis Number (VIN):", chassisNumber || "Not provided", "Engine / Motor No:", engineNumber || "Not provided", y, true);
   y = drawRow2Col("Fuel Description:", record.fuelType, "Emission Standard:", record.emissionNorms, y);
-  y = drawRow2Col("Cubic Capacity (cc):", record.cubicCapacity, "Seating Capacity:", `${record.seatingCapacity} (Incl. Driver)`, y, true);
+  y = drawRow2Col("Cubic Capacity (cc):", record.cubicCapacity, "Seating Capacity:", record.seatingCapacity == null ? "Not provided" : `${record.seatingCapacity} (Incl. Driver)`, y, true);
   y = drawRow2Col("Unladen / Gross Wt:", `${record.unladenWeight} / ${record.grossWeight}`, "Wheelbase / Color:", `${record.wheelbase} / ${record.color}`, y);
   y += 2;
 
@@ -227,68 +231,36 @@ export function generateRcPdf(record: IndianVehicleRcRecord): void {
   y = drawSectionHeader("PART D: STATUTORY COMPLIANCE, INSURANCE & PUCC VALIDITY", y);
   y = drawRow2Col("Insurance Company:", record.insuranceCompany, "Policy Number:", record.insurancePolicyNumber, y, true);
   y = drawRow2Col("Insurance Valid Upto:", `${record.insuranceUpto} (${record.insuranceStatus})`, "PUCC Certificate No:", record.puccNumber, y);
-  y = drawRow2Col("PUCC Valid Upto:", `${record.puccUpto} (${record.puccStatus})`, "Blacklist / Challan:", `${record.blacklistStatus} (${record.challanCount} Pending)`, y, true);
+  y = drawRow2Col("PUCC Valid Upto:", `${record.puccUpto} (${record.puccStatus})`, "Blacklist / Challan:", record.challanCount == null ? record.blacklistStatus : `${record.blacklistStatus} (${record.challanCount} reported)`, y, true);
   y = drawRow2Col("FASTag Tag ID:", record.fastagId, "Issuer Bank:", record.fastagBank, y);
   y += 4;
 
   // -------------------------------------------------------------
-  // FOOTER: DIGITAL SEAL & SIGNATURE BLOCK
+  // DISCLAIMER: provider data is not an RC, Form 23, digital signature or QR verification.
   // -------------------------------------------------------------
-  const footerY = y;
-  const qrBoxSize = 22;
-  const qrX = margin + 4;
-
-  // Simulated QR Code Block with Matrix Lines
-  doc.setDrawColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
-  doc.setLineWidth(0.4);
-  doc.rect(qrX, footerY, qrBoxSize, qrBoxSize);
-
-  // Inner QR pattern representation
-  doc.setFillColor(15, 23, 42);
-  doc.rect(qrX + 2, footerY + 2, 5, 5, "F");
-  doc.rect(qrX + qrBoxSize - 7, footerY + 2, 5, 5, "F");
-  doc.rect(qrX + 2, footerY + qrBoxSize - 7, 5, 5, "F");
-  doc.rect(qrX + 9, footerY + 9, 4, 4, "F");
-  doc.rect(qrX + 8, footerY + 3, 2, 4, "F");
-  doc.rect(qrX + 3, footerY + 8, 4, 2, "F");
-  doc.rect(qrX + 15, footerY + 8, 3, 5, "F");
-  doc.rect(qrX + 8, footerY + 15, 5, 3, "F");
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.5);
-  doc.setTextColor(100, 116, 139);
-  doc.text("SCAN TO VERIFY", qrX + qrBoxSize / 2, footerY + qrBoxSize + 3, { align: "center" });
-
-  // Verification & Legal Text
-  const textX = qrX + qrBoxSize + 6;
+  const footerY = y + 2;
+  const textX = margin + 4;
+  const disclaimerLines = [
+    "NOT AN OFFICIAL REGISTRATION CERTIFICATE / FORM 23",
+    "This PDF is a client-generated summary of fields returned by a third-party provider.",
+    "No government digital signature, verification hash, QR code, RTO seal, challan clearance",
+    "or proof of ownership was supplied or independently verified by this application.",
+    "For authoritative records, use the official Parivahan portal: https://parivahan.gov.in/",
+    `Generated: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST`,
+  ];
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
-  doc.setTextColor(primaryNavy[0], primaryNavy[1], primaryNavy[2]);
-  doc.text("DIGITALLY SIGNED VIA VAHAN 4.0 NATIONAL VEHICLE REGISTER", textX, footerY + 4);
-
+  doc.setTextColor(153, 27, 27);
+  doc.text(disclaimerLines[0], textX, footerY + 4);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(80, 95, 115);
-  doc.text(cleanText(`Digital Verification Hash: ${record.digitalVerificationKey}`), textX, footerY + 8.5);
-  doc.text(cleanText(`Generated on: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST`), textX, footerY + 12.5);
-  doc.text("This is an electronically generated Form 23 RC record valid across India under the Motor Vehicles Act 1988.", textX, footerY + 16.5);
-  doc.text("For physical enforcement verification, query: https://parivahan.gov.in/ - MoRTH Helpline: 0120-2459169", textX, footerY + 20.5);
+  disclaimerLines.slice(1).forEach((line, index) => {
+    doc.text(cleanText(line), textX, footerY + 9 + index * 4);
+  });
 
-  // Digital Seal Stamp on Right
-  const sealX = margin + contentWidth - 36;
-  doc.setDrawColor(30, 58, 138);
-  doc.setLineWidth(0.6);
-  doc.circle(sealX + 14, footerY + 11, 11);
-  doc.circle(sealX + 14, footerY + 11, 9.5);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(5);
-  doc.setTextColor(30, 58, 138);
-  doc.text("REGIONAL TRANSPORT", sealX + 14, footerY + 8, { align: "center" });
-  doc.text("OFFICE - PUNE", sealX + 14, footerY + 11, { align: "center" });
-  doc.text("SEAL VERIFIED", sealX + 14, footerY + 14, { align: "center" });
-
-  // Save the PDF file using standard blob download
-  const fileName = `Parivahan_RC_${cleanText(record.registrationNumber)}.pdf`;
+  // Save as a lookup summary, never as an RC certificate.
+  const fileName = `Vehicle_Lookup_Summary_${cleanText(record.registrationNumber)}.pdf`;
   try {
     const blob = doc.output("blob");
     const url = URL.createObjectURL(blob);

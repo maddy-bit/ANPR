@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from ultralytics import YOLO
 
@@ -88,17 +89,22 @@ class VehicleTracker:
             persist=True,
             stream=True,
             verbose=False,
+            # Ultralytics grabs frames 0, stride, 2*stride, ... BEFORE inference,
+            # so compute scales with sampled frames rather than total frames.
+            # Without this the full video was decoded+inferred and the stride
+            # only discarded downstream work (see audit finding C7).
+            vid_stride=stride if stride > 1 else 1,
         )
 
-        for frame_number, result in enumerate(results_stream):
-            if stride > 1 and frame_number % stride != 0:
-                continue
-
+        # With vid_stride, the i-th yielded result is original frame i*stride.
+        # This keeps frame_number and timestamp_seconds in true video coordinates.
+        for sampled_index, result in enumerate(results_stream):
+            frame_number = sampled_index * stride
             timestamp_seconds = frame_number / fps
             vehicles: list[TrackedVehicle] = []
-            boxes = result.boxes
+            boxes: Any = getattr(result, "boxes", None)
 
-            if boxes is not None and boxes.id is not None:
+            if boxes is not None and getattr(boxes, "id", None) is not None:
                 for box, track_id in zip(boxes, boxes.id):
                     cls_id = int(box.cls[0])
                     if cls_id not in self._vehicle_classes:

@@ -51,7 +51,7 @@ class MultiCameraOrchestrator:
         self,
         camera_id: str,
         video_path: str,
-        start_time_iso: str = "2026-09-05T12:00:00",
+        start_time_iso: Optional[str] = None,
         frame_stride: int = 5,
         enable_dehaze: bool = False,
     ) -> CameraObservation:

@@ -18,9 +18,12 @@ Multi-frame fusion:
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import easyocr
 import numpy as np
@@ -34,6 +37,8 @@ from utils.plate_normalizer import (
 )
 
 validate_plate_format = is_plausible_indian_plate
+
+logger = logging.getLogger(__name__)
 
 # ─── Character correction for Indian license plates ──────────────────────────
 # Common OCR confusables by position type in Indian embossed fonts:
@@ -160,10 +165,31 @@ class OCRService:
 
     def __init__(self):
         oc = cfg.ocr
+        reader_kwargs: dict = {
+            "gpu": oc.use_gpu,
+            "verbose": False,
+        }
+        # Wire the bundled weights when present (models/easyocr/craft_mlt_25k.pth +
+        # english_g2.pth). EasyOCR otherwise defaults to ~/.EasyOCR and re-downloads
+        # on first use. Verify both files before switching so a partial bundle
+        # cannot break the reader.
+        if oc.model_storage_dir is not None:
+            model_dir = Path(oc.model_storage_dir)
+            detector_w = model_dir / "craft_mlt_25k.pth"
+            recognizer_w = model_dir / "english_g2.pth"
+            if detector_w.exists() and recognizer_w.exists():
+                reader_kwargs["model_storage_directory"] = str(model_dir)
+                reader_kwargs["download_enabled"] = False
+                logger.info("EasyOCR using bundled weights from %s", model_dir)
+            else:
+                logger.warning(
+                    "Bundled EasyOCR weights incomplete at %s (detector=%s, recognizer=%s); "
+                    "falling back to default EasyOCR storage",
+                    model_dir, detector_w.exists(), recognizer_w.exists(),
+                )
         self.reader = easyocr.Reader(
             list(oc.languages),
-            gpu=oc.use_gpu,
-            verbose=False,
+            **reader_kwargs,
         )
         self.preprocessor = PlatePreprocessor()
         self._min_conf = oc.min_confidence
@@ -186,17 +212,19 @@ class OCRService:
             return None
 
         # Run OCR: try raw image first, fallback to enhanced
-        results = []
+        results: list[Any] = []
         try:
-            results = self.reader.readtext(plate_crop_bgr)
+            raw_res: Any = self.reader.readtext(plate_crop_bgr)
+            results = list(raw_res) if raw_res else []
         except Exception:
             results = []
 
-        if not results or (results and max((r[2] for r in results), default=0.0) < self._min_conf):
+        if not results or (results and max((float(r[2]) for r in results), default=0.0) < self._min_conf):
             try:
                 enhanced = self.preprocessor.enhance(plate_crop_bgr)
-                enh_results = self.reader.readtext(enhanced)
-                if enh_results and (not results or max(r[2] for r in enh_results) > max(r[2] for r in results)):
+                enh_raw: Any = self.reader.readtext(enhanced)
+                enh_results: list[Any] = list(enh_raw) if enh_raw else []
+                if enh_results and (not results or max(float(r[2]) for r in enh_results) > max(float(r[2]) for r in results)):
                     results = enh_results
             except Exception:
                 pass
@@ -222,9 +250,9 @@ class OCRService:
                     )
 
         # Fallback: Sort by left x coordinate (left-to-right reading order) and concatenate
-        results.sort(key=lambda r: r[0][0][0])
-        raw_text = " ".join(r[1] for r in results).strip()
-        avg_conf = sum(r[2] for r in results) / len(results)
+        results.sort(key=lambda r: float(r[0][0][0]))
+        raw_text = " ".join(str(r[1]) for r in results).strip()
+        avg_conf = sum(float(r[2]) for r in results) / len(results)
 
         if not raw_text or avg_conf < self._min_conf:
             return None
@@ -279,7 +307,7 @@ class OCRService:
                     c = r.normalized_text[i]
                     weighted[c] = weighted.get(c, 0.0) + r.confidence
             if weighted:
-                voted_chars.append(max(weighted, key=weighted.get))
+                voted_chars.append(max(weighted, key=lambda k: weighted[k]))
             else:
                 voted_chars.append("?")
 

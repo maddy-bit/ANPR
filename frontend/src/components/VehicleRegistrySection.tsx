@@ -16,49 +16,51 @@ export function VehicleRegistrySection({
   defaultExpanded = true,
 }: VehicleRegistrySectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [isMasked, setIsMasked] = useState(false);
+  const [isMasked, setIsMasked] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<"all" | "technical" | "compliance">("all");
-  const [fetchedRecord, setFetchedRecord] = useState<IndianVehicleRcRecord | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const normalizedPlate = plateNumber.trim().toUpperCase();
+  const [fetchedRecord, setFetchedRecord] = useState<{
+    plate: string;
+    record: IndianVehicleRcRecord;
+  } | null>(null);
+  const [loadState, setLoadState] = useState<{ plate: string; loading: boolean } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!plateNumber || !plateNumber.trim()) {
-      setFetchedRecord(null);
-      setIsLoading(false);
+    if (!normalizedPlate || getVehicleRegistryRecord(normalizedPlate)) {
       return;
     }
-    if (getVehicleRegistryRecord(plateNumber)) {
-      return;
-    }
+
     const timer = setTimeout(() => {
-      if (!cancelled) setIsLoading(true);
+      if (!cancelled) setLoadState({ plate: normalizedPlate, loading: true });
     }, 0);
 
-    fetchVehicleRegistryRecord(plateNumber)
+    fetchVehicleRegistryRecord(normalizedPlate)
       .then((res) => {
         if (!cancelled) {
-          if (res.success && res.data) {
-            setFetchedRecord(res.data);
-          } else {
-            setFetchedRecord(null);
-          }
+          setFetchedRecord(
+            res.success && res.data
+              ? { plate: normalizedPlate, record: res.data }
+              : null
+          );
         }
       })
       .catch(() => {
         if (!cancelled) setFetchedRecord(null);
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) setLoadState({ plate: normalizedPlate, loading: false });
       });
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [plateNumber]);
+  }, [normalizedPlate]);
 
-  const record = getVehicleRegistryRecord(plateNumber) ?? fetchedRecord;
+  const record = getVehicleRegistryRecord(normalizedPlate) ??
+    (fetchedRecord?.plate === normalizedPlate ? fetchedRecord.record : null);
+  const isLoading = loadState?.plate === normalizedPlate && loadState.loading;
 
   return (
     <TiltCard3D className={className}>
@@ -66,13 +68,13 @@ export function VehicleRegistrySection({
         {/* Dedicated Box Header Strip */}
         <div className="neo-header">
           <div className="flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="flex h-2.5 w-2.5 rounded-full bg-slate-400" />
             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
               <h2 className="text-sm sm:text-base font-bold uppercase tracking-wide text-slate-950 whitespace-nowrap">
-                VAHAN Vehicle Registry
+                Vehicle Registry Lookup
               </h2>
               <span className="text-[10px] font-mono font-bold text-slate-700 bg-slate-200 px-1.5 py-0.5 rounded-xs w-fit">
-                FORM 23 RC
+                THIRD-PARTY LOOKUP
               </span>
             </div>
           </div>
@@ -92,7 +94,7 @@ export function VehicleRegistrySection({
         {isExpanded && (
           record ? (
             <div className="p-4 space-y-4 font-mono">
-              {/* Top Official Banner & Source Reference */}
+              {/* Third-party provider source reference */}
               <div className="rounded-md border border-slate-300 bg-gradient-to-r from-slate-50 to-sky-50/50 p-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-200">
                 <div className="flex items-center gap-2.5">
@@ -101,10 +103,10 @@ export function VehicleRegistrySection({
                   </div>
                   <div>
                     <div className="text-xs font-bold text-slate-950 uppercase tracking-tight">
-                      Ministry of Road Transport &amp; Highways (MoRTH)
+                      Vehicle Registry Lookup • Data Provider
                     </div>
                     <div className="text-[10px] text-slate-600 font-sans">
-                      Government of India • Parivahan Sewa
+                      Provider API response • verify independently with Parivahan
                     </div>
                   </div>
                 </div>
@@ -119,8 +121,8 @@ export function VehicleRegistrySection({
                     <span>🔗 parivahan.gov.in</span>
                     <span className="text-[8px]">↗</span>
                   </a>
-                  <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-xs">
-                    <span>✓ VAHAN VERIFIED</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-300 rounded-xs">
+                    <span>PROVIDER RESPONSE</span>
                   </span>
                 </div>
               </div>
@@ -136,7 +138,7 @@ export function VehicleRegistrySection({
                   <span className="text-base sm:text-lg font-black tracking-widest text-slate-950 font-mono whitespace-nowrap">
                     {record.formattedPlate}
                   </span>
-                  <span className="ml-3 text-[10px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded-xs">
+                  <span className={`ml-3 text-[10px] font-bold px-1.5 py-0.5 rounded-xs ${record.rcStatus === "ACTIVE" ? "bg-emerald-600 text-white" : record.rcStatus === "SUSPENDED" || record.rcStatus === "EXPIRED" || record.rcStatus === "BLACKLISTED" ? "bg-rose-700 text-white" : "bg-slate-200 text-slate-700"}`}>
                     {record.rcStatus}
                   </span>
                 </div>
@@ -216,7 +218,7 @@ export function VehicleRegistrySection({
                   <div className="rounded border border-slate-200 bg-white p-2.5">
                     <span className="text-[10px] text-slate-500 font-bold uppercase block">Hypothecation (Financier)</span>
                     <span className="font-bold text-slate-950 mt-0.5 block">
-                      {record.hypothecationBank ?? "None (Owned Clear)"}
+                      {record.hypothecationBank ?? "Not provided by upstream source"}
                     </span>
                   </div>
 
@@ -260,7 +262,7 @@ export function VehicleRegistrySection({
 
                   <div className="rounded border border-slate-200 bg-white p-2">
                     <span className="text-[10px] text-slate-500 font-bold uppercase block">Emission Norms</span>
-                    <span className="font-bold text-emerald-700">{record.emissionNorms}</span>
+                    <span className="font-bold text-slate-900">{record.emissionNorms}</span>
                   </div>
 
                   <div className="rounded border border-slate-200 bg-white p-2">
@@ -298,32 +300,32 @@ export function VehicleRegistrySection({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <div className="rounded border border-slate-200 bg-emerald-50/40 p-2.5">
+                  <div className="rounded border border-slate-200 bg-white p-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-slate-600 font-bold uppercase">Fitness Validity</span>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-xs">
-                        ACTIVE
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-xs ${record.fitnessStatus === "VALID" ? "text-emerald-800 bg-emerald-100" : record.fitnessStatus === "EXPIRED" ? "text-rose-800 bg-rose-100" : "text-slate-700 bg-slate-100"}`}>
+                        {record.fitnessStatus}
                       </span>
                     </div>
                     <div className="font-bold text-slate-950 mt-1">Upto {record.fitnessUpto}</div>
-                    <div className="text-[10px] text-slate-600 mt-0.5">15-year statutory period from registration date</div>
+                    <div className="text-[10px] text-slate-600 mt-0.5">Status derived only from a provider-supplied expiry date</div>
                   </div>
 
                   <div className="rounded border border-slate-200 bg-white p-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-slate-600 font-bold uppercase">MV Road Tax</span>
                       <span className="text-[10px] font-bold text-sky-800 bg-sky-100 px-1.5 py-0.5 rounded-xs">
-                        PAID
+                        {record.taxStatus === "DATE_RETURNED" ? "DATE PROVIDED" : "UNKNOWN"}
                       </span>
                     </div>
                     <div className="font-bold text-slate-950 mt-1">{record.taxUpto}</div>
-                    <div className="text-[10px] text-slate-600 mt-0.5">Valid across all national routes</div>
+                    <div className="text-[10px] text-slate-600 mt-0.5">No tax clearance is inferred from an absent provider field</div>
                   </div>
 
                   <div className="rounded border border-slate-200 bg-white p-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-slate-600 font-bold uppercase">Insurance Policy</span>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-xs">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-xs ${record.insuranceStatus === "ACTIVE" ? "text-emerald-800 bg-emerald-100" : record.insuranceStatus === "EXPIRED" ? "text-rose-800 bg-rose-100" : "text-slate-700 bg-slate-100"}`}>
                         {record.insuranceStatus}
                       </span>
                     </div>
@@ -336,7 +338,7 @@ export function VehicleRegistrySection({
                   <div className="rounded border border-slate-200 bg-white p-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-slate-600 font-bold uppercase">PUCC (Pollution)</span>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-xs">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-xs ${record.puccStatus === "VALID" ? "text-emerald-800 bg-emerald-100" : record.puccStatus === "EXPIRED" ? "text-rose-800 bg-rose-100" : "text-slate-700 bg-slate-100"}`}>
                         {record.puccStatus}
                       </span>
                     </div>
@@ -351,7 +353,7 @@ export function VehicleRegistrySection({
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] text-slate-500 font-bold uppercase block">E-Challan / Blacklist</span>
-                      <span className="font-bold text-emerald-700">{record.blacklistStatus}</span>
+                      <span className="font-bold text-slate-700">{record.blacklistStatus}{record.challanCount == null ? "" : ` · ${record.challanCount} reported`}</span>
                     </div>
                   </div>
                 </div>
@@ -361,10 +363,10 @@ export function VehicleRegistrySection({
             {/* Verification Footer Note */}
             <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between text-[10px] text-slate-600 font-sans gap-2">
               <div>
-                Digital Verification Hash: <span className="font-mono font-bold text-slate-900">{record.digitalVerificationKey}</span>
+                Digital signature: <span className="font-mono font-bold text-slate-900">{record.digitalVerificationKey ?? "Not supplied; not cryptographically verified"}</span>
               </div>
               <div className="text-slate-500">
-                MoRTH VAHAN 4.0 API • Form 23 Electronic Extract
+                Third-party provider lookup • Not an official Form 23 or government-issued certificate
               </div>
             </div>
           </div>
@@ -374,7 +376,7 @@ export function VehicleRegistrySection({
               <div className="flex flex-col items-center gap-2">
                 <div className="h-6 w-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
                 <span className="text-xs text-slate-700 font-bold uppercase tracking-wide">
-                  Querying Live Parivahan / VAHAN Registry for {plateNumber}...
+                  Querying configured vehicle-data provider for {plateNumber}...
                 </span>
               </div>
             ) : (

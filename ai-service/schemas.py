@@ -13,8 +13,9 @@ Hierarchy:
 """
 
 from __future__ import annotations
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+import math
+from typing import List, Optional, Dict, Any, Literal
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 # ─── low-level observation records ───────────────────────────────────────────
@@ -236,7 +237,10 @@ class SecurityAlert(BaseModel):
 class CameraInput(BaseModel):
     camera_id: str
     video_path: str
-    start_time_iso: str = "2026-09-05T12:00:00"
+    # Recording anchor. None = unknown capture time; the pipeline then uses
+    # processing time and downstream consumers must treat timestamps as
+    # analysis-relative, not capture-true.
+    start_time_iso: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     camera_name: Optional[str] = None
@@ -284,21 +288,41 @@ class DetectionEvent(BaseModel):
     reid_model_version: Optional[str] = None
     reid_dimension: Optional[int] = None
     video_upload_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
+    processing_run_id: Optional[str] = None
 
 
 class ProcessVideoUploadRequest(BaseModel):
     video_upload_id: str
-    video_path: str
-    camera_id: str = 'CAM-01'
+    processing_run_id: Optional[str] = None
+    run_number: Optional[int] = None
+    storage_provider: Literal["LOCAL", "S3"] = "LOCAL"
+    video_path: Optional[str] = None
+    storage_bucket: Optional[str] = None
+    storage_key: Optional[str] = None
+    camera_id: str = Field(..., min_length=1)
     enable_dehaze: bool = False
     frame_stride: int = 5
-    start_time: str = '2026-09-05T12:00:00' 
+    # Optional source-provided recording anchor. None means capture time is unknown.
+    start_time: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_media_reference(self):
+        if self.storage_provider == "LOCAL" and not self.video_path:
+            raise ValueError("video_path is required when storage_provider is LOCAL")
+        if self.storage_provider == "S3":
+            if self.video_path:
+                raise ValueError("video_path must be omitted for S3-backed media")
+            if not self.storage_bucket or not self.storage_key:
+                raise ValueError("storage_bucket and storage_key are required when storage_provider is S3")
+        return self
 
 
 class ProcessVideoRequest(BaseModel):
     video_path: str
     camera_id: str
-    start_time: str = "2026-09-05T12:00:00"
+    # Recording anchor; None/absent = capture time unknown → processing time used.
+    start_time: Optional[str] = None
     frame_stride: int = 5
     plate_sample_stride: int = 3
 
@@ -308,3 +332,105 @@ class ProcessVideoResponse(BaseModel):
     video_path: str
     frames_processed: int
     detections: List[DetectionEvent]
+
+
+# ─── B4.3 Manifest Streaming Protocol Schemas ─────────────────────────────────
+
+class ManifestHeader(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["HEADER"] = "HEADER"
+    version: Literal["1.0"] = Field(...)
+    video_upload_id: str = Field(..., min_length=1)
+    processing_run_id: str = Field(..., min_length=1)
+    camera_id: str = Field(..., min_length=1)
+    started_at: str = Field(..., min_length=1)
+
+
+class ManifestEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["EVENT"] = "EVENT"
+    seq: int = Field(..., ge=0)
+    idempotency_key: str = Field(..., min_length=1)
+    frame_number: int = Field(..., ge=0)
+    timestamp: str = Field(..., min_length=1)
+    camera_id: str = Field(..., min_length=1)
+    vehicle_class: str = Field(..., min_length=1)
+    detection_confidence: float = Field(..., ge=0.0, le=1.0)
+    plate_text_raw: Optional[str] = None
+    plate_text_normalized: Optional[str] = None
+    plate_confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
+    track_id: Optional[int] = None
+    bbox: List[float] = Field(..., min_length=4, max_length=4)
+    reid_embedding: Optional[List[float]] = None
+    reid_model_name: Optional[str] = None
+    reid_model_version: Optional[str] = None
+    reid_dimension: Optional[int] = None
+
+    @field_validator("detection_confidence", "plate_confidence")
+    @classmethod
+    def validate_finite_confidence(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and not math.isfinite(v):
+            raise ValueError(f"Confidence value must be finite, got {v}")
+        return v
+
+    @field_validator("bbox")
+    @classmethod
+    def validate_finite_bbox(cls, v: List[float]) -> List[float]:
+        for idx, coord in enumerate(v):
+            if not math.isfinite(coord):
+                raise ValueError(f"Bounding box coordinate at index {idx} must be finite, got {coord}")
+        return v
+
+    @field_validator("reid_embedding")
+    @classmethod
+    def validate_reid_embedding(cls, v: Optional[List[float]]) -> Optional[List[float]]:
+        if v is not None:
+            if len(v) != 2048:
+                raise ValueError(f"FastReID embedding must have exactly 2048 dimensions, got {len(v)}")
+            for idx, val in enumerate(v):
+                if not math.isfinite(val):
+                    raise ValueError(f"FastReID embedding contains non-finite value at index {idx}: {val}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_reid_provenance(self) -> ManifestEvent:
+        if self.reid_embedding is not None:
+            if self.reid_model_name != "FastReID-SBS-R50-IBN":
+                raise ValueError(f"Invalid reid_model_name: expected 'FastReID-SBS-R50-IBN', got '{self.reid_model_name}'")
+            if self.reid_model_version != "veri-776-sbs-ibn-v2":
+                raise ValueError(f"Invalid reid_model_version: expected 'veri-776-sbs-ibn-v2', got '{self.reid_model_version}'")
+            if self.reid_dimension != 2048:
+                raise ValueError(f"Invalid reid_dimension: expected 2048, got {self.reid_dimension}")
+        else:
+            if any(x is not None for x in (self.reid_model_name, self.reid_model_version, self.reid_dimension)):
+                raise ValueError("Re-ID provenance fields must not be present when reid_embedding is None")
+        return self
+
+
+class ManifestTrailer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["TRAILER"] = "TRAILER"
+    event_count: int = Field(..., ge=0)
+    frames_sampled: int = Field(..., ge=0)
+    payload_sha256: str = Field(..., min_length=64, max_length=64)
+    sealed_at: str = Field(..., min_length=1)
+
+    @field_validator("payload_sha256")
+    @classmethod
+    def validate_sha256_hex(cls, v: str) -> str:
+        if len(v) != 64 or not all(c in "0123456789abcdefABCDEF" for c in v):
+            raise ValueError(f"payload_sha256 must be a 64-character hex string, got '{v}'")
+        return v.lower()
+
+
+class ManifestValidationResult(BaseModel):
+    is_valid: bool
+    event_count: int = 0
+    frames_sampled: int = 0
+    payload_sha256: Optional[str] = None
+    header: Optional[ManifestHeader] = None
+    error: Optional[str] = None
+

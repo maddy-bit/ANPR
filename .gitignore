@@ -44,12 +44,19 @@ data/uploads/
 
 # Environment variables & Secrets
 .env
+.env.*
 .env.local
 .env.*.local
 *.env
+.env.original_supabase_ref
+!.env.example
 
-# IDE & Editor Temporary Files
+# IDE & Editor files
 .idea/
+.vscode/
+*.iml
 antigravity-plugin/
+.agents/
+scratch/
 *.suo
 *.user

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
     "test": "npx tsx src/lib/api.contract.test.ts && npx tsx src/lib/trajectory.test.ts && npx tsx src/lib/trajectory.components.test.tsx",
     "postinstall": "node -e \"if (process.platform === 'linux') { try { require('@tailwindcss/oxide-linux-x64-gnu'); require('lightningcss-linux-x64-gnu'); } catch(e) { require('child_process').execSync('npm install --no-save @tailwindcss/oxide-linux-x64-gnu @tailwindcss/oxide-linux-x64-musl lightningcss-linux-x64-gnu lightningcss-linux-x64-musl', {stdio: 'inherit'}); } }\""
@@ -14,7 +14,7 @@
     "framer-motion": "^13.1.1",
     "jspdf": "^4.2.1",
     "maplibre-gl": "^6.6.0",
-    "next": "16.3.4",
+    "next": "^16.4.6",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -24,8 +24,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "^16.4.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   },
   "optionalDependencies": {

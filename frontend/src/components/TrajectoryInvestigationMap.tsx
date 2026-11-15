@@ -167,12 +167,12 @@ export function TrajectoryInvestigationMap({
 
   // Initialize MapLibre
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current || mapRef.current || validObservations.length === 0) return;
 
-    const initialCenter: [number, number] =
-      validObservations.length > 0
-        ? [validObservations[0].longitude!, validObservations[0].latitude!]
-        : [73.8567, 18.5204]; // Pune fallback center
+    const initialCenter: [number, number] = [
+      validObservations[0].longitude!,
+      validObservations[0].latitude!,
+    ];
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -187,8 +187,8 @@ export function TrajectoryInvestigationMap({
 
     map.on("load", () => {
       setMapReady(true);
-      mapRef.current = map;
     });
+    mapRef.current = map;
 
     return () => {
       markersRef.current.forEach((m) => m.remove());
@@ -196,7 +196,7 @@ export function TrajectoryInvestigationMap({
       map.remove();
       mapRef.current = null;
     };
-  }, []);
+  }, [activeLayer, validObservations]);
 
   // Update basemap style if switched
   useEffect(() => {
@@ -343,12 +343,18 @@ export function TrajectoryInvestigationMap({
       validObservations.forEach((o) => bounds.extend([o.longitude!, o.latitude!]));
       map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 800 });
     }
-  }, [validObservations, transitions, segments, selectedObservationId, mapReady]);
+  }, [observations, validObservations, transitions, segments, selectedObservationId, onSelectObservation, mapReady]);
 
   return (
     <div className="relative flex flex-col h-full w-full overflow-hidden rounded-md border border-slate-300 bg-slate-950">
       {/* MapLibre WebGL Canvas Container */}
       <div ref={containerRef} className="h-full w-full min-h-[420px]" />
+
+      {validObservations.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/90 p-6 text-center text-sm text-slate-300">
+          No verified camera coordinates are available to place this trajectory on the map.
+        </div>
+      )}
 
       {/* Floating Basemap Selector */}
       <div className="absolute top-3 left-3 z-20 flex items-center gap-1 rounded-md border border-slate-700/80 bg-slate-900/90 p-1 backdrop-blur-md shadow-md">

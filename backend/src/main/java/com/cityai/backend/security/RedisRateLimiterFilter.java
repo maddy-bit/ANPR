@@ -83,7 +83,12 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
     private boolean isRateLimitedPath(String uri) {
         return uri.startsWith("/api/vehicles")
                 || uri.startsWith("/api/detections/ingest")
-                || uri.startsWith("/api/ai");
+                || uri.startsWith("/api/ai")
+                || uri.startsWith("/api/watchlist")
+                || uri.startsWith("/api/security-alerts")
+                || uri.startsWith("/api/predict-trajectory")
+                || uri.startsWith("/api/process-video")
+                || uri.startsWith("/api/identities");
     }
 
     private String resolveClientIp(HttpServletRequest request) {

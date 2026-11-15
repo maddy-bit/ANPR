@@ -1,7 +1,7 @@
 /**
- * Routing Engine for Real-Road Trajectory Mapping
- * Connects camera checkpoint coordinates along actual Pune roads via OSRM (Open Source Routing Machine),
- * with robust in-memory caching and fallback road curve generation.
+ * Routing estimate between persisted camera observations.
+ * OSRM provides a plausible road-network connection; this is not proof of
+ * the vehicle's actual path between two sightings.
  */
 
 const routeCache = new Map<string, [number, number][]>();
@@ -20,8 +20,8 @@ function haversineDist(pt1: [number, number], pt2: [number, number]): number {
 }
 
 /**
- * Fetch real driving road coordinates between a list of GPS waypoints [longitude, latitude].
- * Falls back to piecewise smooth road coordinates if OSRM is unreachable or returns a huge detour.
+ * Fetch a candidate driving route between GPS waypoints [longitude, latitude].
+ * Returns an empty array when routing cannot be verified; never fabricates a fallback path.
  */
 export async function fetchRoadRoute(
   waypoints: [number, number][],
@@ -86,29 +86,10 @@ export async function fetchRoadRoute(
       }
     }
   } catch (err) {
-    console.warn("OSRM routing service unavailable, generating fallback path:", err);
+    console.warn("OSRM road-routing estimate unavailable; no route line will be displayed:", err);
   } finally {
     clearTimeout(timeoutId);
   }
 
-  // Fallback: Generate smooth localized road points directly connecting camera waypoints
-  const fallbackCoords: [number, number][] = [];
-  for (let i = 0; i < cleanWaypoints.length - 1; i++) {
-    const start = cleanWaypoints[i];
-    const end = cleanWaypoints[i + 1];
-    const steps = 15;
-
-    for (let s = 0; s < steps; s++) {
-      const t = s / steps;
-      // Gentle curve following local terrain between consecutive camera lat/lng points
-      const deviationFactor = Math.sin(t * Math.PI) * 0.0008;
-      const lng = start[0] + (end[0] - start[0]) * t + (i % 2 === 0 ? deviationFactor : -deviationFactor);
-      const lat = start[1] + (end[1] - start[1]) * t + (i % 2 === 1 ? deviationFactor : -deviationFactor);
-      fallbackCoords.push([lng, lat]);
-    }
-  }
-  fallbackCoords.push(cleanWaypoints[cleanWaypoints.length - 1]);
-
-  routeCache.set(cacheKey, fallbackCoords);
-  return fallbackCoords;
+  return [];
 }

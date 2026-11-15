@@ -11,10 +11,11 @@ Processes a single video feed for a camera node:
 
 from __future__ import annotations
 import os
+import math
 import cv2
 import logging
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set, Optional, Callable, Any
 
 from config import cfg
@@ -39,6 +40,26 @@ logger = logging.getLogger(__name__)
 EVIDENCE_DIR = Path(__file__).resolve().parents[2] / "data" / "evidence"
 
 
+def normalize_start_time(start_time_iso: Optional[str]) -> datetime:
+    """Return a timezone-aware UTC start time; never silently parse local/invalid timestamps."""
+    if not start_time_iso:
+        # Capture time is unknown. This is a processing-time anchor, not camera-origin time.
+        return datetime.now(timezone.utc)
+
+    value = start_time_iso.strip()
+    if value.endswith(("Z", "z")):
+        value = value[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("start_time must be a valid ISO-8601 timestamp") from exc
+
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("start_time must include an explicit UTC offset or Z timezone marker")
+
+    return parsed.astimezone(timezone.utc)
+
+
 class CameraAgent:
     """
     Per-camera processing agent. Isolates state & tracking for a single camera feed.
@@ -61,12 +82,16 @@ class CameraAgent:
     def process_feed(
         self,
         video_path: str,
-        start_time_iso: str = "2026-09-05T12:00:00",
+        start_time_iso: Optional[str] = None,
         frame_stride: int = int(cfg.FRAME_STRIDE),
         plate_sample_stride: int = int(cfg.PLATE_SAMPLE_STRIDE),
         enable_dehaze: bool = False,
         progress_callback: Optional[Callable[[int, int, Dict[str, Any]], None]] = None,
         video_upload_id: Optional[str] = None,
+        processing_run_id: Optional[str] = None,
+        writer: Optional[Any] = None,
+        batch_sync_callback: Optional[Callable[[List[Any]], Any]] = None,
+        max_frames: Optional[int] = None,
     ) -> tuple[int, list[VehicleObservation], list[DetectionEvent]]:
         """
         Process an entire video feed.
@@ -74,19 +99,31 @@ class CameraAgent:
         Returns:
             (total_frames_processed, list_of_vehicle_observations, list_of_detection_events)
         """
-        if not os.path.exists(video_path):
-            logger.error(f"Video file not found: {video_path}")
-            return 0, [], []
+        if not os.path.isfile(video_path):
+            logger.error("Recorded video file not found or not a regular file: %s", video_path)
+            raise FileNotFoundError(f"Recorded video file not found: {video_path}")
 
         cap = cv2.VideoCapture(video_path)
-        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-        total_video_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-        cap.release()
-
         try:
-            start_time = datetime.fromisoformat(start_time_iso.replace("Z", ""))
-        except Exception:
-            start_time = datetime.now()
+            if not cap.isOpened():
+                raise ValueError(f"Unable to open recorded video file: {video_path}")
+
+            fps = float(cap.get(cv2.CAP_PROP_FPS))
+            total_video_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if not math.isfinite(fps) or fps <= 0:
+                raise ValueError(
+                    f"Video FPS metadata is missing or invalid for '{video_path}'; "
+                    "refusing to invent frame timestamps."
+                )
+            if total_video_frames <= 0:
+                raise ValueError(
+                    f"Video frame count is unavailable for '{video_path}'; "
+                    "refusing to report a potentially empty/partial analysis."
+                )
+        finally:
+            cap.release()
+
+        start_time = normalize_start_time(start_time_iso)
 
         # Track accumulators
         track_plates: Dict[int, List[PlateObservation]] = {}
@@ -98,12 +135,15 @@ class CameraAgent:
         track_frame_counts: Dict[int, int] = {}
 
         detection_events: List[DetectionEvent] = []
+        pending_sync_batch: List[DetectionEvent] = []
         frames_processed = 0
 
         logger.info(f"[{self.camera_id}] Starting feed processing: {video_path}")
 
         for tracked_frame, frame_img in self.tracker.track_video(video_path, frame_stride=frame_stride):
             frames_processed += 1
+            if max_frames is not None and frames_processed > max_frames:
+                break
             rel_sec = tracked_frame.frame_number / fps
 
             # Apply Dark Channel Prior (DCP) dehazing if enabled
@@ -111,6 +151,10 @@ class CameraAgent:
                 frame_img = self.dehazer.dehaze(frame_img)
             abs_time = start_time + timedelta(seconds=rel_sec)
             timestamp_sec = rel_sec  # Relative timestamp in video timeline
+            abs_time_iso = abs_time.isoformat().replace("+00:00", "Z")
+
+            frame_proposals: List[Dict[str, Any]] = []
+            frame_events_meta: List[Dict[str, Any]] = []
 
             for vehicle in tracked_frame.vehicles:
                 tid = vehicle.track_id
@@ -194,28 +238,99 @@ class CameraAgent:
                     rel_crop_path = f"{self.camera_id}/{crop_filename}"
                     track_crops[tid].append(rel_crop_path)
 
-                    # Record legacy detection event
-                    detection_events.append(
-                        DetectionEvent(
-                            camera_id=self.camera_id,
-                            frame_number=tracked_frame.frame_number,
-                            timestamp=abs_time.isoformat() + "Z",
-                            vehicle_class=vehicle.vehicle_class,
-                            detection_confidence=vehicle.confidence,
-                            bbox=list(vehicle.bbox),
-                            track_id=tid,
-                            plate_text_raw=plate_text_raw,
-                            plate_text_normalized=plate_text_norm,
-                            plate_confidence=plate_conf,
-                            image_path=rel_crop_path,
-                            reid_confidence=0.85 if emb else None,
-                            reid_embedding=emb.vector.tolist() if (emb and hasattr(emb.vector, 'tolist')) else (list(emb.vector) if emb else None),
-                            reid_model_name=emb.model_name if emb else None,
-                            reid_model_version=emb.model_version if emb else None,
-                            reid_dimension=emb.dimension if emb else None,
-                            video_upload_id=video_upload_id,
-                        )
+                    reid_list = emb.vector.tolist() if (emb and hasattr(emb.vector, 'tolist')) else (list(emb.vector) if emb else None)
+                    proposal = {
+                        "track_id": tid,
+                        "bbox": [float(c) for c in vehicle.bbox],
+                        "detection_confidence": float(vehicle.confidence),
+                        "vehicle_class": str(vehicle.vehicle_class),
+                        "plate_text_raw": plate_text_raw,
+                        "plate_text_normalized": plate_text_norm,
+                        "plate_confidence": plate_conf,
+                        "reid_embedding": reid_list,
+                        "reid_model_name": emb.model_name if emb else None,
+                        "reid_model_version": emb.model_version if emb else None,
+                        "reid_dimension": emb.dimension if emb else None,
+                        "raw_proposal_index": len(frame_proposals),
+                    }
+                    frame_proposals.append(proposal)
+                    frame_events_meta.append({
+                        "tid": tid,
+                        "vehicle": vehicle,
+                        "plate_text_raw": plate_text_raw,
+                        "plate_text_normalized": plate_text_norm,
+                        "plate_conf": plate_conf,
+                        "rel_crop_path": rel_crop_path,
+                        "emb": emb,
+                        "reid_list": reid_list,
+                    })
+
+            # Stream proposals to manifest writer if active
+            if writer is not None:
+                start_seq = writer.seq
+                writer.append_frame_events(tracked_frame.frame_number, frame_proposals, abs_time_iso)
+                for idx, meta in enumerate(frame_events_meta):
+                    v = meta["vehicle"]
+                    e = meta["emb"]
+                    seq_num = start_seq + idx
+                    idempotency_key = f"vid:{video_upload_id}:run:{processing_run_id}:seq:{seq_num}" if (video_upload_id and processing_run_id) else None
+                    event = DetectionEvent(
+                        camera_id=self.camera_id,
+                        frame_number=tracked_frame.frame_number,
+                        timestamp=abs_time_iso,
+                        vehicle_class=v.vehicle_class,
+                        detection_confidence=v.confidence,
+                        bbox=list(v.bbox),
+                        track_id=meta["tid"],
+                        plate_text_raw=meta["plate_text_raw"],
+                        plate_text_normalized=meta["plate_text_normalized"],
+                        plate_confidence=meta["plate_conf"],
+                        image_path=meta["rel_crop_path"],
+                        # The FastReID extractor emits a normalized embedding but no
+                        # per-crop model confidence, so the honest value is None.
+                        # A fabricated constant (e.g. 0.85) would invent precision.
+                        reid_confidence=None,
+                        reid_embedding=meta["reid_list"],
+                        reid_model_name=e.model_name if e else None,
+                        reid_model_version=e.model_version if e else None,
+                        reid_dimension=e.dimension if e else None,
+                        video_upload_id=video_upload_id,
+                        idempotency_key=idempotency_key,
+                        processing_run_id=processing_run_id,
                     )
+                    detection_events.append(event)
+                    pending_sync_batch.append(event)
+            else:
+                for meta in frame_events_meta:
+                    v = meta["vehicle"]
+                    e = meta["emb"]
+                    event = DetectionEvent(
+                        camera_id=self.camera_id,
+                        frame_number=tracked_frame.frame_number,
+                        timestamp=abs_time_iso,
+                        vehicle_class=v.vehicle_class,
+                        detection_confidence=v.confidence,
+                        bbox=list(v.bbox),
+                        track_id=meta["tid"],
+                        plate_text_raw=meta["plate_text_raw"],
+                        plate_text_normalized=meta["plate_text_normalized"],
+                        plate_confidence=meta["plate_conf"],
+                        image_path=meta["rel_crop_path"],
+                        # See comment above: no real per-crop ReID confidence exists.
+                        reid_confidence=None,
+                        reid_embedding=meta["reid_list"],
+                        reid_model_name=e.model_name if e else None,
+                        reid_model_version=e.model_version if e else None,
+                        reid_dimension=e.dimension if e else None,
+                        video_upload_id=video_upload_id,
+                    )
+                    detection_events.append(event)
+                    pending_sync_batch.append(event)
+
+            # Progressive batch sync (every 50 events)
+            if batch_sync_callback and len(pending_sync_batch) >= 50:
+                batch_sync_callback(pending_sync_batch)
+                pending_sync_batch = []
 
             if progress_callback:
                 progress_callback(
@@ -228,6 +343,11 @@ class CameraAgent:
                         "dcp_applied": enable_dehaze,
                     }
                 )
+
+        # Flush remaining pending detections to backend
+        if batch_sync_callback and pending_sync_batch:
+            batch_sync_callback(pending_sync_batch)
+            pending_sync_batch = []
 
         # Aggregate tracks into VehicleObservation objects
         vehicle_observations: List[VehicleObservation] = []
@@ -263,7 +383,7 @@ class VideoPipeline:
         self,
         video_path: str,
         camera_id: str,
-        start_time_iso: str = "2026-09-05T12:00:00",
+        start_time_iso: Optional[str] = None,
         frame_stride: int = int(cfg.FRAME_STRIDE),
         plate_sample_stride: int = int(cfg.PLATE_SAMPLE_STRIDE),
     ) -> tuple[int, list[DetectionEvent]]:

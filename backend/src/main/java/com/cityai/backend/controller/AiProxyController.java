@@ -35,16 +35,23 @@ public class AiProxyController {
 
     private final String aiServiceBaseUrl;
     private final RestTemplate restTemplate;
+    private final long maxFileSizeMb;
 
     @org.springframework.beans.factory.annotation.Autowired
     public AiProxyController(
-            @Value("${ai-service.base-url:http://localhost:8000}") String aiServiceBaseUrl) {
-        this(aiServiceBaseUrl, new RestTemplate());
+            @Value("${ai-service.base-url:http://localhost:8000}") String aiServiceBaseUrl,
+            @Value("${app.storage.max-file-size-mb:500}") long maxFileSizeMb) {
+        this(aiServiceBaseUrl, new RestTemplate(), maxFileSizeMb);
     }
 
     public AiProxyController(String aiServiceBaseUrl, RestTemplate restTemplate) {
+        this(aiServiceBaseUrl, restTemplate, 500L);
+    }
+
+    public AiProxyController(String aiServiceBaseUrl, RestTemplate restTemplate, long maxFileSizeMb) {
         this.aiServiceBaseUrl = aiServiceBaseUrl.replaceAll("/+$", "");
         this.restTemplate = restTemplate;
+        this.maxFileSizeMb = maxFileSizeMb;
     }
 
     @GetMapping("/watchlist")
@@ -83,6 +90,22 @@ public class AiProxyController {
             log.warn("Unable to post /process-video to AI service ({}): {}", aiServiceBaseUrl, e.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "AI_SERVICE_UNAVAILABLE", "message", "Video processing service is currently unavailable."));
+        }
+    }
+
+    @PostMapping("/detect-plate")
+    public ResponseEntity<?> detectPlate(@RequestBody Map<String, Object> body) {
+        try {
+            String url = aiServiceBaseUrl + "/detect-plate";
+            Object response = restTemplate.postForObject(url, body, Object.class);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.warn("Unable to post /detect-plate to AI service ({}): {}", aiServiceBaseUrl, e.getMessage());
+            Map<String, Object> fallback = new HashMap<>();
+            fallback.put("success", false);
+            fallback.put("detected", false);
+            fallback.put("message", "AI service detection temporarily unavailable: " + e.getMessage());
+            return ResponseEntity.ok(fallback);
         }
     }
 
@@ -174,10 +197,10 @@ public class AiProxyController {
             return ResponseEntity.badRequest().body(Map.of("error", "BAD_REQUEST", "message", "File must not be empty"));
         }
 
-        long maxBytes = 150L * 1024 * 1024;
+        long maxBytes = maxFileSizeMb * 1024L * 1024L;
         if (file.getSize() > maxBytes) {
             return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                    .body(Map.of("error", "PAYLOAD_TOO_LARGE", "message", "Video file exceeds 150MB limit."));
+                    .body(Map.of("error", "PAYLOAD_TOO_LARGE", "message", "Video file exceeds " + maxFileSizeMb + "MB limit."));
         }
 
         Path tempFile = null;
@@ -188,7 +211,7 @@ public class AiProxyController {
 
             if (Files.size(tempFile) > maxBytes) {
                 return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                        .body(Map.of("error", "PAYLOAD_TOO_LARGE", "message", "Video file exceeds 150MB limit."));
+                        .body(Map.of("error", "PAYLOAD_TOO_LARGE", "message", "Video file exceeds " + maxFileSizeMb + "MB limit."));
             }
 
             String url = aiServiceBaseUrl + "/upload-video";

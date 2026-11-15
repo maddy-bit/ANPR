@@ -404,12 +404,14 @@ export function VehicleHologram3D({
       <div className="mt-3 grid grid-cols-3 gap-2 text-center font-mono">
         <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-1.5">
           <div className="text-[8px] uppercase tracking-wider text-slate-400 font-bold">L x W x H</div>
-          <div className="text-[11px] font-bold text-slate-800">4.68 x 1.86 x 1.69 m</div>
+          <div className="text-[11px] font-bold text-slate-400" title="Dimensions are not measured — this is a generic illustrative wireframe">
+            NOT MEASURED
+          </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-1.5">
           <div className="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Vehicle Class</div>
           <div className="text-[11px] font-bold text-emerald-700 uppercase">
-            {(vehicleType || "Sedan").replace(/^(Silver|White|Black|Red|Blue)\s+/i, "")} (98.4%)
+            {(vehicleType || "Unknown").replace(/^(Silver|White|Black|Red|Blue)\s+/i, "")}
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-1.5">

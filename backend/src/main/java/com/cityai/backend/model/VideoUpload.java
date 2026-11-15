@@ -64,6 +64,13 @@ public class VideoUpload {
     @Column(name = "processing_duration_sec")
     private Double processingDurationSec;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_processing_run_id")
+    private VideoProcessingRun currentProcessingRun;
+
+    @Column(name = "active_run_generation", nullable = false)
+    private Integer activeRunGeneration = 0;
+
     protected VideoUpload() {
         // JPA
     }
@@ -186,5 +193,21 @@ public class VideoUpload {
 
     public void setProcessingDurationSec(Double processingDurationSec) {
         this.processingDurationSec = processingDurationSec;
+    }
+
+    public VideoProcessingRun getCurrentProcessingRun() {
+        return currentProcessingRun;
+    }
+
+    public void setCurrentProcessingRun(VideoProcessingRun currentProcessingRun) {
+        this.currentProcessingRun = currentProcessingRun;
+    }
+
+    public Integer getActiveRunGeneration() {
+        return activeRunGeneration != null ? activeRunGeneration : 0;
+    }
+
+    public void setActiveRunGeneration(Integer activeRunGeneration) {
+        this.activeRunGeneration = activeRunGeneration != null ? activeRunGeneration : 0;
     }
 }

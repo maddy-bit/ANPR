@@ -3,38 +3,36 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  uploadVideoFile,
-  ingestCameraFootage,
   getIngestionJobStatus,
   uploadVideoToStorage,
   getVideoUploads,
   deleteVideoUpload,
   processVideoUpload,
   getVideoDetections,
+  getOrCreateClientRunToken,
+  clearClientRunToken,
   VideoUploadRecord,
   DetectionRecord,
   getApiBaseUrl,
+  type CameraDto,
 } from "@/lib/api";
 
 interface VideoIngestionModalProps {
   isOpen: boolean;
   onClose: () => void;
+  cameraInventory?: CameraDto[];
   onTargetDetected?: (plate: string, vehicleType?: string, color?: string, videoUrls?: Record<string, string>) => void;
 }
 
-const AVAILABLE_CAMERAS = [
-  { id: "CAM-01", name: "Shivajinagar Chowk", file: "CAM-01.mp4" },
-  { id: "CAM-02", name: "FC Road Junction", file: "CAM-02.mp4" },
-  { id: "CAM-03", name: "JM Road - Deccan Gymkhana", file: "CAM-03.mp4" },
-  { id: "CAM-04", name: "Karve Road Bridge", file: "CAM-04.mp4" },
-  { id: "CAM-05", name: "Swargate Junction", file: "CAM-05.mp4" },
-  { id: "CAM-06", name: "Hadapsar Industrial Estate", file: "CAM-06.mp4" },
-  { id: "CAM-07", name: "Kothrud Depot", file: "CAM-07.mp4" },
-  { id: "CAM-08", name: "Baner Road", file: "CAM-08.mp4" },
-  { id: "CAM-09", name: "Hinjewadi Phase 1", file: "CAM-09.mp4" },
-  { id: "CAM-10", name: "Wakad Bridge", file: "CAM-10.mp4" },
-  { id: "CAM-11", name: "Aundh - ITI Road", file: "CAM-11.mp4" },
-];
+function isCompleteIndianPlate(value: string): boolean {
+  return /^(?:[A-Z]{2}\d{1,2}[A-Z]{1,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$/.test(String(value || "").replace(/[^A-Z0-9]/gi, "").toUpperCase());
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -44,9 +42,13 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
-export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: VideoIngestionModalProps) {
-  const [mode, setMode] = useState<"CORRIDOR" | "UPLOAD">("UPLOAD");
-  const [selectedCamera, setSelectedCamera] = useState("CAM-01");
+export function VideoIngestionModal({ isOpen, onClose, cameraInventory = [], onTargetDetected }: VideoIngestionModalProps) {
+  const [selectedCamera, setSelectedCamera] = useState("");
+  const mode: "UPLOAD" | "CORRIDOR" = "UPLOAD";
+  const cameraOptions = cameraInventory.map((camera) => ({ id: camera.id, name: camera.name, file: "" }));
+  const effectiveCameraId = cameraOptions.some((camera) => camera.id === selectedCamera)
+    ? selectedCamera
+    : cameraOptions[0]?.id || "";
   const [enableDehaze, setEnableDehaze] = useState(false);
   const [targetPlate, setTargetPlate] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -92,8 +94,8 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
     try {
       const page = await getVideoUploads(0, 10);
       setUploadHistory(page.content || []);
-    } catch (err: any) {
-      setHistoryError(err.message || "Failed to load upload history from backend.");
+    } catch (err: unknown) {
+      setHistoryError(getErrorMessage(err, "Failed to load upload history from backend."));
     } finally {
       setIsLoadingHistory(false);
     }
@@ -105,28 +107,14 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
     try {
       const page = await getVideoDetections(uploadId, 0, 50);
       setPersistedDetections(page.content || []);
-    } catch (err: any) {
-      console.warn("Failed to load video detections:", err);
+    } catch (err: unknown) {
+      console.warn("Failed to load video detections:", getErrorMessage(err, "Unknown detection query failure"));
     } finally {
       setIsLoadingDetections(false);
     }
   }, []);
 
-  // Reset state on open/close
-  useEffect(() => {
-    if (isOpen) {
-      fetchUploadHistory();
-      resetJobState();
-    }
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    };
-  }, [isOpen, fetchUploadHistory]);
-
-  const resetJobState = () => {
+  const resetJobState = useCallback(() => {
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -142,7 +130,25 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
     setTracksCount(0);
     setRecognizedPlates([]);
     setExecutedFps(null);
-  };
+  }, []);
+
+  // Reset state on open/close after commit to avoid synchronous effect updates.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (isOpen) {
+      timer = setTimeout(() => {
+        void fetchUploadHistory();
+        resetJobState();
+      }, 0);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [isOpen, fetchUploadHistory, resetJobState]);
 
   // Phase A3: Real Video Upload to Durable Storage
   const handleUploadToStorage = async () => {
@@ -161,7 +167,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
     try {
       const record = await uploadVideoToStorage(
         uploadFile,
-        selectedCamera,
+        effectiveCameraId,
         (percent, loaded, total) => {
           setUploadProgress(percent);
           setUploadLoadedBytes(loaded);
@@ -173,9 +179,9 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
       setUploadProgress(100);
       // Refresh persistent history list
       fetchUploadHistory();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setUploadStatus("FAILED");
-      setUploadError(err.message || "Video upload failed. Check connection to backend storage.");
+      setUploadError(getErrorMessage(err, "Video upload failed. Check connection to backend storage."));
     }
   };
 
@@ -194,8 +200,8 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
         setPreviewVideoUrl(null);
       }
       await fetchUploadHistory();
-    } catch (err: any) {
-      alert("Delete failed: " + err.message);
+    } catch (err: unknown) {
+      alert("Delete failed: " + getErrorMessage(err, "Unknown storage error"));
     }
   };
 
@@ -243,6 +249,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
           setStatusText("AI Processing Pipeline execution completed successfully!");
           fetchUploadHistory();
           if (uploadIdForDetections) {
+            clearClientRunToken(uploadIdForDetections);
             loadDetectionsForVideo(uploadIdForDetections);
           }
         } else if (statusRes.status === "FAILED") {
@@ -254,32 +261,14 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
           setErrorMessage(statusRes.details?.error || "AI pipeline encountered an error during frame processing.");
           fetchUploadHistory();
         }
-      } catch (pollErr: any) {
-        console.warn("Job status poll error:", pollErr);
+      } catch (pollErr: unknown) {
+        console.warn("Job status poll error:", getErrorMessage(pollErr, "Unknown job polling error"));
       }
     }, 600);
   };
 
-  // Trigger Corridor Ingestion (Pre-stored corridor files)
-  const handleStartCorridorIngestion = async () => {
-    resetJobState();
-    setErrorMessage(null);
-    setJobStatus("QUEUED");
-    setStatusText(`Requesting corridor AI pipeline execution on ${selectedCamera} footage...`);
-
-    try {
-      const res = await ingestCameraFootage(selectedCamera, enableDehaze);
-      setJobId(res.jobId);
-      setStatusText(`Job ${res.jobId} registered. Ingestion pipeline initializing...`);
-      startAiPolling(res.jobId);
-    } catch (err: any) {
-      setJobStatus("FAILED");
-      setErrorMessage(err.message || "Failed to start video ingestion job.");
-    }
-  };
-
   // Trigger AI pipeline on uploaded custom video
-  const handleStartUploadedAiPipeline = async (targetUploadId?: string) => {
+  const handleStartUploadedAiPipeline = async (targetUploadId?: string, isReprocess?: boolean) => {
     const uploadIdToRun = targetUploadId || confirmedUpload?.id;
     if (!uploadIdToRun) {
       setErrorMessage("Please select or upload a video file first.");
@@ -291,33 +280,48 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
     setStatusText(`Triggering AI inference pipeline for video upload ${uploadIdToRun}...`);
 
     try {
-      const res = await processVideoUpload(uploadIdToRun, { enableDehaze, frameStride: 5 });
+      const clientRunToken = getOrCreateClientRunToken(uploadIdToRun, {
+        enableDehaze,
+        frameStride: 5,
+        reprocess: isReprocess,
+      });
+      const res = await processVideoUpload(uploadIdToRun, {
+        enableDehaze,
+        frameStride: 5,
+        clientRunToken,
+        reprocess: isReprocess ?? false,
+      });
       setJobId(res.job_id);
       setStatusText(`Job ${res.job_id} registered. Ingestion pipeline running YOLOv8 vehicle detector & plate OCR...`);
       startAiPolling(res.job_id, uploadIdToRun);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setJobStatus("FAILED");
-      setErrorMessage(err.message || "Failed to start AI processing pipeline.");
+      setErrorMessage(getErrorMessage(err, "Failed to start AI processing pipeline."));
     }
   };
 
   const handleApplyPlateToInvestigation = (plateToUse: string) => {
+    const normalizedPlate = plateToUse.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!isCompleteIndianPlate(normalizedPlate)) {
+      setErrorMessage("OCR did not return a complete registration number. Confirm a full plate before opening a vehicle investigation.");
+      return;
+    }
+
     const videoUrls: Record<string, string> = {};
-    if (mode === "UPLOAD" && confirmedUpload) {
-      const baseUrl = getApiBaseUrl();
-      videoUrls[selectedCamera] = `${baseUrl}/api/videos/${confirmedUpload.id}/stream`;
-    } else if (mode === "UPLOAD" && uploadFile) {
+    const storedUploadId = confirmedUpload?.id || activeDetectionsVideoId;
+    if (effectiveCameraId && storedUploadId) {
+      videoUrls[effectiveCameraId] = `${getApiBaseUrl()}/api/videos/${storedUploadId}/stream`;
+    } else if (effectiveCameraId && uploadFile) {
       try {
-        videoUrls[selectedCamera] = URL.createObjectURL(uploadFile);
+        videoUrls[effectiveCameraId] = URL.createObjectURL(uploadFile);
       } catch {
-        videoUrls[selectedCamera] = `/videos/${selectedCamera}.mp4`;
+        setErrorMessage("The selected video preview could not be opened.");
+        return;
       }
-    } else {
-      videoUrls[selectedCamera] = `/videos/${selectedCamera}.mp4`;
     }
 
     if (onTargetDetected) {
-      onTargetDetected(plateToUse.trim().toUpperCase(), undefined, undefined, videoUrls);
+      onTargetDetected(normalizedPlate, undefined, undefined, videoUrls);
     }
     onClose();
   };
@@ -325,6 +329,9 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
   const isUploading = uploadStatus === "UPLOADING";
   const isAiWorking = jobStatus === "QUEUED" || jobStatus === "PROCESSING";
   const isBusy = isUploading || isAiWorking;
+  const plateForInvestigation = [targetPlate, ...recognizedPlates]
+    .map((plate) => String(plate || "").toUpperCase().replace(/[^A-Z0-9]/g, ""))
+    .find(isCompleteIndianPlate) || "";
 
   return (
     <AnimatePresence>
@@ -334,20 +341,20 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            className="relative w-full max-w-3xl border border-slate-300 bg-white p-6 shadow-2xl rounded-xl max-h-[92vh] overflow-y-auto"
+            className="relative w-full max-w-6xl border border-slate-300 bg-white p-6 shadow-2xl rounded-xl max-h-[92vh] overflow-y-auto"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-300 pb-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-900 text-white font-bold text-lg">
-                  📹
+                  ðŸ“¹
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-slate-950 tracking-tight uppercase">
                     CCTV Video Ingestion & Storage Pipeline
                   </h2>
                   <p className="text-xs text-slate-700 font-mono font-semibold tracking-wider">
-                    DURABLE STORAGE • POSTGRESQL METADATA • STREAMING • PIPELINE
+                    DURABLE STORAGE â€¢ POSTGRESQL METADATA â€¢ STREAMING â€¢ PIPELINE
                   </p>
                 </div>
               </div>
@@ -357,7 +364,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                 disabled={isBusy}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold uppercase text-slate-700 hover:bg-slate-50 shadow-xs transition-all cursor-pointer disabled:opacity-50"
               >
-                ✕ Close
+                âœ• Close
               </button>
             </div>
 
@@ -365,27 +372,13 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
             <div className="mt-4 flex rounded-lg border border-slate-200 bg-slate-100 p-1">
               <button
                 type="button"
-                onClick={() => {
-                  if (!isBusy) setMode("UPLOAD");
-                }}
+                onClick={() => undefined}
                 disabled={isBusy}
                 className={`flex-1 rounded-md py-1.5 text-xs font-mono font-bold transition-all cursor-pointer ${
-                  mode === "UPLOAD" ? "bg-white text-slate-950 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  "bg-white text-slate-950 shadow-xs"
                 }`}
               >
-                📁 Video Upload & Storage Pipeline
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isBusy) setMode("CORRIDOR");
-                }}
-                disabled={isBusy}
-                className={`flex-1 rounded-md py-1.5 text-xs font-mono font-bold transition-all cursor-pointer ${
-                  mode === "CORRIDOR" ? "bg-white text-slate-950 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                🎥 Recorded Corridor Camera Feeds
+                ðŸ“ Video Upload & Storage Pipeline
               </button>
             </div>
 
@@ -398,7 +391,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                     Associate Camera Node
                   </label>
                   <select
-                    value={selectedCamera}
+                    value={effectiveCameraId}
                     onChange={(e) => {
                       setSelectedCamera(e.target.value);
                       resetJobState();
@@ -406,12 +399,16 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                     disabled={isBusy}
                     className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-slate-900"
                   >
-                    {AVAILABLE_CAMERAS.map((cam) => (
+                    {!effectiveCameraId && <option value="">Select a registered camera</option>}
+                    {cameraOptions.map((cam) => (
                       <option key={cam.id} value={cam.id}>
-                        {cam.id} — {cam.name}
+                        {cam.id} â€” {cam.name}
                       </option>
                     ))}
                   </select>
+                  {mode === "UPLOAD" && !cameraInventory.length && (
+                    <p className="mt-1 text-xs text-amber-700">Add or sync a camera source first. An unassigned archive can be uploaded, but AI processing needs a real camera record.</p>
+                  )}
                 </div>
 
                 {/* Target Plate Filter (Optional) */}
@@ -423,7 +420,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                     type="text"
                     value={targetPlate}
                     onChange={(e) => setTargetPlate(e.target.value.toUpperCase())}
-                    placeholder="e.g. MH12DE1433"
+                    placeholder="Enter target plate"
                     disabled={isBusy}
                     className="w-full rounded-md border border-slate-300 bg-white p-2 text-xs font-mono font-bold text-slate-950 focus:outline-none focus:border-slate-900 uppercase"
                   />
@@ -455,13 +452,13 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                       htmlFor="video-upload-file"
                       className="cursor-pointer flex flex-col items-center justify-center gap-1.5"
                     >
-                      <span className="text-2xl">📤</span>
+                      <span className="text-2xl">ðŸ“¤</span>
                       <span className="text-xs font-bold text-slate-800 uppercase">
                         {uploadFile ? uploadFile.name : "Click to select video file for durable storage"}
                       </span>
                       <span className="text-[11px] text-slate-500">
                         {uploadFile
-                          ? `Size: ${formatBytes(uploadFile.size)} • Format: ${uploadFile.type || "binary stream"}`
+                          ? `Size: ${formatBytes(uploadFile.size)} â€¢ Format: ${uploadFile.type || "binary stream"}`
                           : "Supports MP4, AVI, MOV, MKV up to 500 MB (Magic-byte verified)"}
                       </span>
                     </label>
@@ -498,7 +495,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                     <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3 space-y-2">
                       <div className="flex items-center justify-between text-xs font-bold">
                         <span className="text-blue-900 flex items-center gap-1.5">
-                          <span className="animate-spin">⏳</span> Uploading to Durable Storage...
+                          <span className="animate-spin">â³</span> Uploading to Durable Storage...
                         </span>
                         <span className="text-blue-950 font-mono">{uploadProgress}%</span>
                       </div>
@@ -521,7 +518,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                   {uploadStatus === "FAILED" && (
                     <div className="rounded-md border border-rose-300 bg-rose-50 p-3 space-y-2">
                       <div className="flex items-start gap-2 text-xs text-rose-900">
-                        <span className="font-bold text-rose-600">⚠</span>
+                        <span className="font-bold text-rose-600">âš </span>
                         <div className="flex-1">
                           <span className="font-bold">Upload Failed: </span>
                           <span>{uploadError}</span>
@@ -545,14 +542,14 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[11px] font-bold">
-                            ✓
+                            âœ“
                           </span>
                           <span className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
                             Video Durably Persisted
                           </span>
                         </div>
                         <span className="rounded bg-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-900 uppercase">
-                          {confirmedUpload.status} • {confirmedUpload.storageProvider}
+                          {confirmedUpload.status} â€¢ {confirmedUpload.storageProvider}
                         </span>
                       </div>
 
@@ -575,7 +572,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                         </div>
                         <div className="bg-white p-2 rounded border border-emerald-200">
                           <span className="text-slate-500 block text-[9px] uppercase font-bold">Assigned Node</span>
-                          <span className="font-bold text-slate-900">{confirmedUpload.cameraId || selectedCamera}</span>
+                          <span className="font-bold text-slate-900">{confirmedUpload.cameraId || effectiveCameraId}</span>
                         </div>
                       </div>
 
@@ -588,7 +585,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                           }}
                           className="text-[11px] font-bold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
                         >
-                          ▶ Stream / Preview Video
+                          â–¶ Stream / Preview Video
                         </button>
                         <div className="flex items-center gap-2">
                           <button
@@ -604,7 +601,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                             disabled={isAiWorking}
                             className="rounded bg-slate-900 px-3 py-1 text-[11px] font-bold text-white hover:bg-slate-800 cursor-pointer disabled:opacity-50"
                           >
-                            Run AI Detection on this Video →
+                            Run AI Detection on this Video â†’
                           </button>
                         </div>
                       </div>
@@ -623,7 +620,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                         disabled={isLoadingHistory}
                         className="text-[11px] text-slate-600 hover:text-slate-900 font-bold cursor-pointer"
                       >
-                        {isLoadingHistory ? "Refreshing..." : "↻ Refresh"}
+                        {isLoadingHistory ? "Refreshing..." : "â†» Refresh"}
                       </button>
                     </div>
 
@@ -647,13 +644,13 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                             className="py-2 flex items-center justify-between text-[11px] font-mono hover:bg-slate-50 px-1 rounded transition-colors"
                           >
                             <div className="flex items-center gap-2.5 overflow-hidden">
-                              <span className="text-slate-400">📹</span>
+                              <span className="text-slate-400">ðŸ“¹</span>
                               <div className="truncate">
                                 <span className="font-bold text-slate-900 block truncate" title={video.originalFilename}>
                                   {video.originalFilename}
                                 </span>
                                 <span className="text-slate-500 text-[10px]">
-                                  {formatBytes(video.fileSize)} • {video.cameraId || "Unassigned"} •{" "}
+                                  {formatBytes(video.fileSize)} â€¢ {video.cameraId || "Unassigned"} â€¢{" "}
                                   {new Date(video.createdAt).toLocaleString()}
                                 </span>
                               </div>
@@ -664,7 +661,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                               </span>
                               <button
                                 type="button"
-                                onClick={() => handleStartUploadedAiPipeline(video.id)}
+                                onClick={() => handleStartUploadedAiPipeline(video.id, video.status === "COMPLETED")}
                                 disabled={isBusy}
                                 className="text-slate-900 hover:text-black font-bold cursor-pointer text-[10px]"
                               >
@@ -706,7 +703,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                     <div className="rounded-md border border-slate-300 bg-slate-50 p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                          <span>🎯 Persisted Detections ({persistedDetections.length})</span>
+                          <span>ðŸŽ¯ Persisted Detections ({persistedDetections.length})</span>
                           <span className="text-[10px] text-slate-500 font-normal">Video: {activeDetectionsVideoId.substring(0, 8)}...</span>
                         </span>
                         <button
@@ -714,7 +711,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                           onClick={() => setActiveDetectionsVideoId(null)}
                           className="text-[11px] text-slate-500 hover:text-slate-800 font-bold cursor-pointer"
                         >
-                          ✕ Close Detections
+                          âœ• Close Detections
                         </button>
                       </div>
 
@@ -765,13 +762,13 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                                     )}
                                   </td>
                                   <td className="p-1.5">
-                                    {det.plateTextNormalized && (
+                                    {det.plateTextNormalized && isCompleteIndianPlate(det.plateTextNormalized) && (
                                       <button
                                         type="button"
                                         onClick={() => handleApplyPlateToInvestigation(det.plateTextNormalized!)}
                                         className="text-blue-600 hover:text-blue-800 font-bold cursor-pointer text-[10px]"
                                       >
-                                        Investigate →
+                                        Investigate â†’
                                       </button>
                                     )}
                                   </td>
@@ -790,7 +787,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" />
                     <span className="font-bold text-slate-900">Corridor Footage Archive:</span>
-                    <span>videos/{selectedCamera}.mp4</span>
+                    <span>videos/{effectiveCameraId}.mp4</span>
                   </div>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold uppercase">
                     Ready for Ingestion
@@ -808,7 +805,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                       onClick={() => setPreviewVideoUrl(null)}
                       className="text-slate-400 hover:text-white font-bold cursor-pointer"
                     >
-                      ✕ Close Stream
+                      âœ• Close Stream
                     </button>
                   </div>
                   <video
@@ -897,6 +894,73 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                     </div>
                   </div>
 
+                  {activeDetectionsVideoId && (
+                    <div className="grid gap-3 border-t border-slate-200 pt-3 xl:grid-cols-2">
+                      <section className="min-w-0 rounded-md border border-slate-300 bg-slate-950 p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <h3 className="text-xs font-bold uppercase tracking-wide text-white">Recorded source footage</h3>
+                          <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-200">CAMERA {effectiveCameraId}</span>
+                        </div>
+                        <video
+                          controls
+                          playsInline
+                          muted
+                          src={`${getApiBaseUrl()}/api/videos/${activeDetectionsVideoId}/stream`}
+                          className="aspect-video w-full rounded bg-black object-contain"
+                        />
+                        <p className="mt-2 text-[10px] leading-4 text-slate-300">
+                          This is the uploaded recording used for the completed inference run, not a live CCTV connection.
+                        </p>
+                      </section>
+
+                      <section className="min-w-0 rounded-md border border-slate-300 bg-white p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-900">AI output Â· persisted detections</h3>
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-mono text-slate-700">{persistedDetections.length} events</span>
+                        </div>
+                        {persistedDetections.length === 0 ? (
+                          <p className="rounded border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">
+                            The run completed without persisted vehicle detections.
+                          </p>
+                        ) : (
+                          <div className="max-h-64 space-y-2 overflow-y-auto">
+                            {persistedDetections.map((det) => {
+                              const plate = det.plateTextNormalized || "";
+                              const plateIsComplete = isCompleteIndianPlate(plate);
+                              return (
+                                <div key={det.id} className="flex items-center justify-between gap-3 rounded border border-slate-200 p-2">
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-slate-900">
+                                      {det.vehicleClass || "Vehicle"} Â· Track {det.trackId ?? "â€”"}
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-slate-600">
+                                      Detection {Math.round((det.detectionConfidence || 0) * 100)}% Â· Frame {det.frameNumber ?? "â€”"}
+                                    </p>
+                                    <p className="mt-1 font-mono text-xs font-bold text-slate-900">
+                                      {plate || "PLATE NOT READ"}
+                                      {plate && !plateIsComplete ? <span className="ml-2 font-sans font-normal text-amber-700">Partial OCR</span> : null}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={!plateIsComplete}
+                                    onClick={() => handleApplyPlateToInvestigation(plate)}
+                                    className="shrink-0 rounded border border-slate-300 px-2.5 py-1.5 text-[10px] font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    Investigate
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <p className="mt-2 text-[10px] leading-4 text-slate-500">
+                          A trajectory is opened only after a complete plate is confirmed. Multiple-camera movement needs additional camera detections with matching plate or ReID evidence.
+                        </p>
+                      </section>
+                    </div>
+                  )}
+
                   {/* Recognized Plates */}
                   {recognizedPlates.length > 0 && (
                     <div className="pt-2 border-t border-slate-200 space-y-1.5">
@@ -925,7 +989,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                   {/* Error Notification */}
                   {errorMessage && (
                     <div className="rounded border border-rose-300 bg-rose-50 p-2.5 text-xs text-rose-800 flex items-start gap-2">
-                      <span className="font-bold">⚠</span>
+                      <span className="font-bold">âš </span>
                       <span>{errorMessage}</span>
                     </div>
                   )}
@@ -938,7 +1002,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
               <div>
                 {jobStatus === "COMPLETED" && (
                   <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                    <span>✔</span> AI Pipeline execution completed
+                    <span>âœ”</span> AI Pipeline execution completed
                   </span>
                 )}
               </div>
@@ -955,25 +1019,16 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                 {jobStatus === "COMPLETED" ? (
                   <button
                     type="button"
-                    onClick={() => handleApplyPlateToInvestigation(targetPlate || recognizedPlates[0] || "")}
-                    className="neo-btn px-5 py-2 text-xs font-bold uppercase cursor-pointer flex items-center gap-2"
+                    disabled={!plateForInvestigation}
+                    onClick={() => handleApplyPlateToInvestigation(plateForInvestigation)}
+                    className="neo-btn px-5 py-2 text-xs font-bold uppercase cursor-pointer flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <span>🔍</span>
+                    <span>ðŸ”</span>
                     <span>
-                      {targetPlate || recognizedPlates[0]
-                        ? `Investigate ${targetPlate || recognizedPlates[0]}`
-                        : "View Results in Dashboard"}
+                      {plateForInvestigation
+                        ? `Investigate ${plateForInvestigation}`
+                        : "Full plate required to investigate"}
                     </span>
-                  </button>
-                ) : mode === "CORRIDOR" ? (
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={handleStartCorridorIngestion}
-                    className="neo-btn px-5 py-2 text-xs font-bold uppercase cursor-pointer disabled:opacity-50 flex items-center gap-2"
-                  >
-                    <span>⚙</span>
-                    <span>{isAiWorking ? "AI Processing In Progress..." : "Run Corridor AI Pipeline"}</span>
                   </button>
                 ) : (
                   <button
@@ -982,7 +1037,7 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
                     onClick={uploadStatus === "UPLOADED" ? () => handleStartUploadedAiPipeline() : handleUploadToStorage}
                     className="neo-btn px-5 py-2 text-xs font-bold uppercase cursor-pointer disabled:opacity-50 flex items-center gap-2"
                   >
-                    <span>{uploadStatus === "UPLOADED" ? "⚙" : "📤"}</span>
+                    <span>{uploadStatus === "UPLOADED" ? "âš™" : "ðŸ“¤"}</span>
                     <span>
                       {isUploading
                         ? `Uploading (${uploadProgress}%)...`
@@ -1000,3 +1055,4 @@ export function VideoIngestionModal({ isOpen, onClose, onTargetDetected }: Video
     </AnimatePresence>
   );
 }
+

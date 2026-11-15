@@ -28,6 +28,7 @@ public class VehicleController {
     private final VehicleDetectionRepository detectionRepository;
     private final AuditLogService auditLogService;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public VehicleController(
             VehicleRepository vehicleRepository,
             VehicleDetectionRepository detectionRepository,

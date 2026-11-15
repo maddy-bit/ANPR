@@ -43,6 +43,13 @@ public class VehicleDetection {
     private VideoUpload videoUpload;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "processing_run_id")
+    private VideoProcessingRun processingRun;
+
+    @Column(name = "idempotency_key", length = 128)
+    private String idempotencyKey;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
     @JoinColumn(name = "global_identity_id")
     private GlobalIdentity globalIdentity;
 
@@ -70,7 +77,7 @@ public class VehicleDetection {
     /** As read by OCR before normalization, e.g. "MH 12 AB 1234". */
     private String plateTextRaw;
 
-    /** Normalized plate actually used for matching, e.g. "MH12AB1234". */
+    /** Normalized plate value used for matching; provenance is retained with the detection. */
     private String plateTextNormalized;
 
     /** Placeholder for appearance-based Re-ID confidence (Phase 8+). */
@@ -293,4 +300,21 @@ public class VehicleDetection {
     public void setGlobalIdentity(GlobalIdentity globalIdentity) {
         this.globalIdentity = globalIdentity;
     }
+
+    public VideoProcessingRun getProcessingRun() {
+        return processingRun;
+    }
+
+    public void setProcessingRun(VideoProcessingRun processingRun) {
+        this.processingRun = processingRun;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
 }
+

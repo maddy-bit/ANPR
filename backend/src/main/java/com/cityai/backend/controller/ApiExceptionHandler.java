@@ -2,6 +2,7 @@ package com.cityai.backend.controller;
 
 import java.time.Instant;
 import java.util.NoSuchElementException;
+import com.cityai.backend.exception.IdempotencyConflictException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -38,6 +39,12 @@ public class ApiExceptionHandler {
                 .orElse("Invalid request");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse("INVALID_REQUEST", message, Instant.now().toString()));
+    }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(IdempotencyConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("IDEMPOTENCY_CONFLICT", ex.getMessage(), Instant.now().toString()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

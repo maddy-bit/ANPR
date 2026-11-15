@@ -178,7 +178,16 @@ class CameraTopologyService:
         n1 = self.nodes.get(cam1_id)
         n2 = self.nodes.get(cam2_id)
 
-        if not n1 or not n2 or not n1.has_valid_coordinates or not n2.has_valid_coordinates:
+        if (
+            not n1
+            or not n2
+            or not n1.has_valid_coordinates
+            or not n2.has_valid_coordinates
+            or n1.latitude is None
+            or n1.longitude is None
+            or n2.latitude is None
+            or n2.longitude is None
+        ):
             return None, DistanceMethod.UNKNOWN_COORDINATES
 
         # 3. Geodesic Haversine calculation
@@ -239,6 +248,15 @@ class CameraTopologyService:
             )
 
         dist_km, method = self.calculate_distance(cam1_id, cam2_id)
+        if dist_km is None:
+            return SpatialTemporalEvaluation(
+                feasibility=FeasibilityStatus.FEASIBILITY_UNKNOWN,
+                distance_km=None,
+                distance_method=method,
+                time_diff_sec=abs(t2 - t1) if (t1 is not None and t2 is not None) else None,
+                apparent_speed_kmh=None,
+                reason=f"Missing or unconfigured camera coordinates between {cam1_id} and {cam2_id}; cannot determine physical distance.",
+            )
 
         # Rule 3: Missing or uninitialized timestamps (<= 0.0 indicates unset timestamp)
         if t1 is None or t2 is None or (t1 <= 0.0 and t2 <= 0.0):

@@ -51,10 +51,21 @@ def find_repo_root() -> Path:
     """
     Dynamically discover the repository root without hardcoded machine paths.
     Traverses upward from this module looking for markers (.git, data/benchmarks).
+    Handles git worktrees where .git is a file.
     """
     current = Path(__file__).resolve()
     for parent in [current] + list(current.parents):
-        if (parent / "data" / "benchmarks").is_dir() or (parent / ".git").is_dir():
+        if (parent / "data" / "benchmarks").is_dir() or (parent / ".git").exists():
+            if not (parent / "data" / "benchmarks").is_dir() and (parent / ".git").is_file():
+                try:
+                    content = (parent / ".git").read_text(encoding="utf-8").strip()
+                    if content.startswith("gitdir:"):
+                        gitdir = Path(content.split(":", 1)[1].strip())
+                        main_repo = gitdir.parents[2]
+                        if (main_repo / "data" / "benchmarks").is_dir():
+                            return main_repo
+                except Exception:
+                    pass
             return parent
     # Fallback to two levels up from ai-service/loaders
     return current.parents[2]

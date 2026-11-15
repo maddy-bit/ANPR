@@ -13,10 +13,17 @@ export function TrajectoryPredictionCard({ plate }: TrajectoryPredictionCardProp
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  // Idiomatic React 19 pattern: Adjust state during render when prop changes
+  const [prevPlate, setPrevPlate] = useState(plate);
+  if (plate !== prevPlate) {
+    setPrevPlate(plate);
     setIsLoading(true);
     setErrorMessage(null);
+    setCandidates([]);
+  }
+
+  useEffect(() => {
+    let active = true;
 
     predictTrajectory(plate)
       .then((data) => {

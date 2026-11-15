@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { ProductShell } from "@/components/ProductShell";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -13,8 +14,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "City AI Traffic Intelligence",
-  description: "City-wide engine for multi-camera ANPR trajectory tracking and urban traffic analytics.",
+  title: "City AI Traffic | Vehicle Intelligence",
+  description: "City AI Traffic — camera inventory, recorded-video ANPR, vehicle investigation and evidence intelligence.",
 };
 
 export default function RootLayout({
@@ -23,11 +24,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-[#f4f4f0] text-black font-sans">{children}</body>
+    <html lang="en" className={spaceGrotesk.variable + " " + jetbrainsMono.variable + " h-full antialiased"}>
+      <body className="min-h-full bg-[#f5f6f8] font-sans text-slate-900">
+        <ProductShell>{children}</ProductShell>
+      </body>
     </html>
   );
 }

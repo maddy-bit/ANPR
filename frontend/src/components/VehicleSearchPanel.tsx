@@ -12,9 +12,9 @@ interface VehicleSearchPanelProps {
 }
 
 const MODES: { value: SearchMode; label: string; desc: string }[] = [
-  { value: "historical", label: "Historical", desc: "Stored Trajectory" },
-  { value: "live", label: "Live 3D Sim", desc: "Real-time Stream" },
-  { value: "combined", label: "Hybrid", desc: "Route + Live Play" },
+  { value: "historical", label: "Historic", desc: "Stored SIH records" },
+  { value: "live", label: "Live", desc: "Available live sources" },
+  { value: "combined", label: "Hybrid", desc: "Stored + incoming" },
 ];
 
 export function VehicleSearchPanel({ onSearch, isSearching }: VehicleSearchPanelProps) {
@@ -216,7 +216,7 @@ export function VehicleSearchPanel({ onSearch, isSearching }: VehicleSearchPanel
               </>
             ) : (
               <>
-                <span>⚡ Reconstruct 3D Trajectory</span>
+                <span>Search investigation</span>
               </>
             )}
           </button>

@@ -116,8 +116,8 @@ class GlobalVehicleRegistry:
             timestamp_last=record.last_seen_timestamp,
             license_plate=record.primary_plate,
             plate_confidence=record.plate_confidence,
-            color=record.color,
-            vehicle_type=record.vehicle_type,
+            color=record.color or "Unknown",
+            vehicle_type=record.vehicle_type or "Unknown",
             reid_embedding=record.reid_embedding,
             crop_path=latest.crop_path if latest else None,
         )

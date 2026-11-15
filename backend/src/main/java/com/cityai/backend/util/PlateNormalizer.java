@@ -2,7 +2,7 @@ package com.cityai.backend.util;
 
 /**
  * Mirrors ai-service/utils/plate_normalizer.py so a plate typed into the
- * search box ("MH12 AB 1234", "mh12ab1234", ...) matches what was stored
+ * search box (spaced or normalized registration formats) matches what was stored
  * from OCR output.
  */
 public final class PlateNormalizer {
@@ -17,3 +17,4 @@ public final class PlateNormalizer {
         return rawText.toUpperCase().replaceAll("[^A-Z0-9]", "");
     }
 }
+

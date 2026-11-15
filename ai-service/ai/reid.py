@@ -6,27 +6,28 @@ from vehicle crops using a verified checkpoint fine-tuned on the VeRi-776 vehicl
 
 Guarantees:
 1. Checkpoint SHA-256 verification before model loading.
-2. 2048-dimensional float32 L2-normalized feature vectors.
-3. No silent fallback to generic models when vehicle-specific Re-ID is requested.
+2. Full 418/418 tensor loading with strict=True into genuine ResNet-50-IBN architecture.
+3. 2048-dimensional float32 L2-normalized feature vectors.
 4. Model provenance (name, version, dimension) persisted with every embedding.
 5. Strict rejection of cross-model comparisons between incompatible embedding versions.
+6. Explicit incompatibility reporting rather than silent fallback.
 """
 
 from __future__ import annotations
-import os
+
 import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import cv2
 import numpy as np
 import torch
-import torchvision.models as models
 import torchvision.transforms as transforms
 
 from config import cfg
+from ai.fastreid_backbone import FastReIdSbsR50IbnModel
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,21 @@ def verify_checkpoint_hash(checkpoint_path: str | Path, expected_sha256: str) ->
     return True
 
 
+class IncompatibleEmbeddingError(ValueError):
+    """Raised when comparing ReId embeddings from different latent spaces or models."""
+    pass
+
+
+@dataclass
+class EmbeddingComparisonOutcome:
+    """
+    Explicit structured outcome of embedding compatibility and similarity evaluation.
+    """
+    is_compatible: bool
+    similarity: float | None
+    reason: str | None = None
+
+
 @dataclass
 class ReIdEmbedding:
     """
@@ -67,7 +83,7 @@ class ReIdEmbedding:
     """
     vector: np.ndarray  # float32 array, L2 normalized
     model_name: str = "fastreid_veri_sbs_r50_ibn"
-    model_version: str = "veri-776-v1"
+    model_version: str = "veri-776-sbs-ibn-v2"
     dimension: int = 2048
     is_normalized: bool = True
     embedding_type: str = "fastreid"  # backwards compatibility field
@@ -79,7 +95,7 @@ class ReIdEmbedding:
 class FastReIdExtractor:
     """
     Vehicle Re-ID feature extractor based on FastReID SBS ResNet-50-IBN checkpoint.
-    Loads BNNeck bottleneck weights and produces 2048-dimensional L2-normalized embeddings.
+    Loads all 418 weights strictly and produces 2048-dimensional L2-normalized embeddings.
     """
 
     def __init__(
@@ -95,49 +111,55 @@ class FastReIdExtractor:
         # Step 1: Verify hash
         verify_checkpoint_hash(self.weights_path, self.expected_sha256)
 
-        # Step 2: Load checkpoint state
+        # Step 2: Instantiate genuine FastReID SBS ResNet-50-IBN architecture
+        self.model = FastReIdSbsR50IbnModel()
+
+        # Step 3: Load checkpoint state
         ckpt = torch.load(str(self.weights_path), map_location=self.device, weights_only=False)
-        self.model_state = ckpt.get("model", ckpt)
-        logger.info(f"Loaded FastReID checkpoint ({len(self.model_state)} tensors) from {self.weights_path}")
+        state_dict = ckpt.get("model", ckpt)
 
-        # Step 3: Base ResNet-50 backbone
-        base_model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
-        base_model.fc = torch.nn.Identity()
-        base_model.to(self.device)
-        base_model.eval()
-        self.base_model = base_model
+        # Step 4: Strict loading - fail explicitly on missing or unexpected tensors
+        missing_keys, unexpected_keys = self.model.load_state_dict(state_dict, strict=True)
+        if missing_keys or unexpected_keys:
+            raise RuntimeError(
+                f"FastReID checkpoint loading failed strict verification!\n"
+                f"Missing keys: {missing_keys}\n"
+                f"Unexpected keys: {unexpected_keys}"
+            )
 
-        # Step 4: FastReID input preprocessing (256x256, ImageNet stats)
+        self.model.to(self.device)
+        self.model.eval()
+        logger.info(
+            f"Loaded FastReID SBS ResNet-50-IBN model ({len(state_dict)} tensors) strictly from {self.weights_path}"
+        )
+
+        # Step 5: FastReID evaluation preprocessing
+        # 256x256, Bicubic interpolation, float in [0.0, 255.0]
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((256, 256)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.Resize((256, 256), interpolation=transforms.InterpolationMode.BICUBIC),
         ])
-
-        # Step 5: Extract BNNeck bottleneck parameters
-        if "heads.bottleneck.0.weight" in self.model_state:
-            self.bn_w = self.model_state["heads.bottleneck.0.weight"].cpu().numpy()
-            self.bn_b = self.model_state["heads.bottleneck.0.bias"].cpu().numpy()
-            self.bn_m = self.model_state["heads.bottleneck.0.running_mean"].cpu().numpy()
-            self.bn_v = self.model_state["heads.bottleneck.0.running_var"].cpu().numpy()
-        else:
-            raise KeyError("Checkpoint missing required 'heads.bottleneck.0.weight' for FastReID BNNeck.")
 
     def extract(self, crop_bgr: np.ndarray) -> np.ndarray:
         """
         Extract a 2048-dimensional L2-normalized embedding vector from a BGR vehicle crop.
         """
         rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
-        tensor = self.transform(rgb).unsqueeze(0).to(self.device)
+        pil_img = self.transform(rgb)
+
+        # Convert PIL Image to float32 tensor in [0.0, 255.0] range (FastReID standard)
+        np_img = np.array(pil_img, dtype=np.float32)  # (H, W, 3)
+        tensor = torch.from_numpy(np_img).permute(2, 0, 1).unsqueeze(0).to(self.device)  # (1, 3, 256, 256)
+
         with torch.no_grad():
-            feat = self.base_model(tensor).squeeze(0).cpu().numpy()
+            feat = self.model(tensor).squeeze(0).cpu().numpy()
 
-        # FastReID BNNeck projection: (feat - mean) / sqrt(var + eps) * weight + bias
-        eps = 1e-5
-        feat = (feat - self.bn_m) / np.sqrt(self.bn_v + eps) * self.bn_w + self.bn_b
+        # Verify finite values
+        if not np.isfinite(feat).all():
+            logger.error("Non-finite values detected in extracted Re-ID feature vector!")
+            feat = np.nan_to_num(feat, nan=0.0, posinf=0.0, neginf=0.0)
 
-        # L2 normalization to unit sphere
+        # Unit L2 normalization verification
         norm = np.linalg.norm(feat)
         if norm > 1e-6:
             feat = feat / norm
@@ -145,6 +167,37 @@ class FastReIdExtractor:
             feat = np.zeros_like(feat)
 
         return feat.astype(np.float32)
+
+    def extract_batch(self, crops_bgr: List[np.ndarray]) -> np.ndarray:
+        """
+        Extract 2048-dimensional L2-normalized embeddings for a batch of BGR vehicle crops.
+        """
+        if not crops_bgr:
+            return np.empty((0, 2048), dtype=np.float32)
+
+        tensors = []
+        for crop in crops_bgr:
+            rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+            pil_img = self.transform(rgb)
+            np_img = np.array(pil_img, dtype=np.float32)
+            t = torch.from_numpy(np_img).permute(2, 0, 1)  # (3, 256, 256)
+            tensors.append(t)
+
+        batch_tensor = torch.stack(tensors).to(self.device)
+
+        with torch.no_grad():
+            feats = self.model(batch_tensor).cpu().numpy()
+
+        # Verify finite values and normalize
+        if not np.isfinite(feats).all():
+            logger.error("Non-finite values detected in batch Re-ID feature vectors!")
+            feats = np.nan_to_num(feats, nan=0.0, posinf=0.0, neginf=0.0)
+
+        norms = np.linalg.norm(feats, axis=1, keepdims=True)
+        norms = np.where(norms > 1e-6, norms, 1.0)
+        feats = feats / norms
+
+        return feats.astype(np.float32)
 
 
 class ReIdService:
@@ -183,7 +236,9 @@ class ReIdService:
                 expected_sha256=self.expected_sha256,
                 device=self.device_str,
             )
-            logger.info(f"ReIdService initialized with model {self.model_name} (v{self.model_version}) on {self.device_str}")
+            logger.info(
+                f"ReIdService initialized with model {self.model_name} (v{self.model_version}) on {self.device_str}"
+            )
         except Exception as e:
             if not self.allow_fallback:
                 logger.error(f"Failed to initialize FastReID model from {self.model_path}: {e}")
@@ -192,7 +247,7 @@ class ReIdService:
                 logger.warning(f"ReIdService fallback enabled. Deep model unavailable: {e}")
                 self.extractor = None
 
-    def embed(self, vehicle_crop_bgr: np.ndarray) -> ReIdEmbedding | None:
+    def embed(self, vehicle_crop_bgr: Optional[np.ndarray]) -> Optional[ReIdEmbedding]:
         """
         Extract L2-normalized 2048-dim embedding vector for a vehicle crop.
         Returns ReIdEmbedding or None if crop is invalid.
@@ -226,7 +281,7 @@ class ReIdService:
             return ReIdEmbedding(
                 vector=vector,
                 model_name="hsv_histogram_fallback",
-                model_version="legacy-v1",
+                model_version="legacy-v0",
                 dimension=len(vector),
                 is_normalized=True,
                 embedding_type="hsv",
@@ -234,24 +289,65 @@ class ReIdService:
 
         return None
 
-    def similarity(self, a: ReIdEmbedding | None, b: ReIdEmbedding | None) -> float:
+    def compare(
+        self,
+        a: ReIdEmbedding | None,
+        b: ReIdEmbedding | None,
+    ) -> EmbeddingComparisonOutcome:
         """
-        Compute cosine similarity between two vehicle embeddings.
-        Enforces strict model compatibility: returns 0.0 if models or dimensions mismatch.
+        Compare two vehicle embeddings with explicit model compatibility validation.
+        Returns explicit incompatibility outcome rather than silently disguising as zero similarity.
         """
-        if a is None or b is None or a.vector is None or b.vector is None:
-            return 0.0
-        if len(a.vector) == 0 or len(b.vector) == 0:
-            return 0.0
-
-        # Strict compatibility check: do not compare incompatible model embeddings
-        if a.model_name != b.model_name or a.dimension != b.dimension or a.model_version != b.model_version:
-            logger.warning(
-                f"Cross-model Re-ID comparison rejected: {a.model_name} (v{a.model_version}, {a.dimension}d) "
-                f"vs {b.model_name} (v{b.model_version}, {b.dimension}d). Latent spaces are incompatible."
+        if a is None or b is None:
+            return EmbeddingComparisonOutcome(
+                is_compatible=False, similarity=None, reason="One or both embeddings are None."
             )
-            return 0.0
+        if a.vector is None or b.vector is None or len(a.vector) == 0 or len(b.vector) == 0:
+            return EmbeddingComparisonOutcome(
+                is_compatible=False, similarity=None, reason="One or both embedding vectors are empty."
+            )
+
+        # Validate latent space compatibility
+        if a.model_name != b.model_name:
+            return EmbeddingComparisonOutcome(
+                is_compatible=False,
+                similarity=None,
+                reason=f"Model name mismatch: '{a.model_name}' vs '{b.model_name}'. Incompatible latent spaces.",
+            )
+        if a.model_version != b.model_version:
+            return EmbeddingComparisonOutcome(
+                is_compatible=False,
+                similarity=None,
+                reason=f"Model version mismatch: '{a.model_version}' vs '{b.model_version}'. Incompatible latent spaces.",
+            )
+        if a.dimension != b.dimension or len(a.vector) != len(b.vector):
+            return EmbeddingComparisonOutcome(
+                is_compatible=False,
+                similarity=None,
+                reason=f"Embedding dimension mismatch: {a.dimension}d vs {b.dimension}d.",
+            )
 
         # Cosine similarity for unit L2-normalized vectors is the dot product
         dot = float(np.dot(a.vector, b.vector))
-        return max(0.0, min(1.0, dot))
+        sim = max(0.0, min(1.0, dot))
+        return EmbeddingComparisonOutcome(is_compatible=True, similarity=sim, reason=None)
+
+    def similarity(
+        self,
+        a: ReIdEmbedding | None,
+        b: ReIdEmbedding | None,
+        strict: bool = False,
+    ) -> float:
+        """
+        Compute cosine similarity between two vehicle embeddings.
+        If strict=True, raises IncompatibleEmbeddingError on incompatible models.
+        If strict=False, logs warning with explicit reason and returns 0.0 for backward compatibility.
+        """
+        outcome = self.compare(a, b)
+        if not outcome.is_compatible:
+            if strict:
+                raise IncompatibleEmbeddingError(outcome.reason)
+            logger.warning(f"Cross-model Re-ID comparison rejected: {outcome.reason}")
+            return 0.0
+
+        return outcome.similarity if outcome.similarity is not None else 0.0

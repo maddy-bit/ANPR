@@ -7,13 +7,8 @@ import * as maplibregl from "maplibre-gl";
 import type { CameraDto, TrajectoryPointDto } from "@/lib/api";
 import { fetchRoadRoute } from "@/lib/routing";
 
-// High-performance Google Maps raster tile styles with pre-baked WebGL vector route layers.
-// Pre-baking route and mesh sources directly inside the style specification guarantees
-// that real-road trajectory lines render flawlessly without style-load race conditions.
-const GOOGLE_GLYPHS = "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf";
-
+// OpenStreetMap-based CARTO raster styles with a dashed estimated road connection between observations.
 const ROUTE_SOURCE_ID = "trajectory-route";
-const MESH_LINKS_SOURCE_ID = "camera-mesh-links";
 
 function createBasemapStyle(
   sourceKey: string,
@@ -27,11 +22,7 @@ function createBasemapStyle(
         type: "raster",
         tiles,
         tileSize: 256,
-        attribution: "© Google Maps | City Surveillance Matrix",
-      },
-      [MESH_LINKS_SOURCE_ID]: {
-        type: "geojson",
-        data: { type: "FeatureCollection", features: [] },
+        attribution: "Â© OpenStreetMap contributors Â© CARTO",
       },
       [ROUTE_SOURCE_ID]: {
         type: "geojson",
@@ -47,84 +38,44 @@ function createBasemapStyle(
         maxzoom: 22,
       },
       {
-        id: "camera-mesh-layer",
-        type: "line",
-        source: MESH_LINKS_SOURCE_ID,
-        paint: {
-          "line-color": "#0284c7",
-          "line-width": 1.5,
-          "line-opacity": 0.35,
-        },
-      },
-      {
-        id: "trajectory-route-casing",
+        id: "trajectory-route-line",
         type: "line",
         source: ROUTE_SOURCE_ID,
         layout: { "line-join": "round", "line-cap": "round" },
         paint: {
-          "line-color": "#021533",
-          "line-width": 12,
-          "line-opacity": 0.95,
-        },
-      },
-      {
-        id: "trajectory-route-glow",
-        type: "line",
-        source: ROUTE_SOURCE_ID,
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: {
-          "line-color": "#0284c7",
-          "line-width": 7,
-          "line-opacity": 1.0,
-        },
-      },
-      {
-        id: "trajectory-route-laser",
-        type: "line",
-        source: ROUTE_SOURCE_ID,
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: {
-          "line-color": "#38bdf8",
-          "line-width": 3,
-          "line-opacity": 1.0,
+          "line-color": "#2563a6",
+          "line-width": 4,
+          "line-opacity": 0.9,
+          "line-dasharray": [1.5, 1.5],
         },
       },
     ],
-    glyphs: GOOGLE_GLYPHS,
+
   };
 }
 
 const STREETS_STYLE = createBasemapStyle(
-  "google-streets",
+  "carto-voyager",
   [
-    "https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    "https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    "https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
   ],
-  "google-streets-layer",
+  "carto-voyager-layer",
 );
 
 const SATELLITE_STYLE = createBasemapStyle(
-  "google-satellite",
+  "carto-dark",
   [
-    "https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-    "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-    "https://mt2.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-    "https://mt3.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
   ],
-  "google-satellite-layer",
+  "carto-dark-layer",
 );
 
 const LIGHT_STYLE = createBasemapStyle(
-  "google-terrain",
+  "carto-light",
   [
-    "https://mt0.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
-    "https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
-    "https://mt2.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
-    "https://mt3.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
+    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
   ],
-  "google-terrain-layer",
+  "carto-light-layer",
 );
 
 const BASEMAP_STYLES: Record<"light" | "streets" | "satellite", maplibregl.StyleSpecification> = {
@@ -139,6 +90,7 @@ interface InvestigationMapProps {
   selectedIndex: number | null;
   onSelectPoint: (index: number) => void;
   replayToken: number;
+  onSelectCamera?: (camera: CameraDto) => void;
 }
 
 export function InvestigationMap({
@@ -147,27 +99,21 @@ export function InvestigationMap({
   selectedIndex,
   onSelectPoint,
   replayToken,
+  onSelectCamera,
 }: InvestigationMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const vehicleMarkerRef = useRef<maplibregl.Marker | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const cameraMarkersRef = useRef<maplibregl.Marker[]>([]);
-  const checkpointElementsRef = useRef<{ el: HTMLDivElement; index: number }[]>([]);
+  const checkpointElementsRef = useRef<{ el: HTMLButtonElement; index: number }[]>([]);
   const isInitialReconstructRef = useRef<boolean>(true);
   const roadCoordinatesRef = useRef<[number, number][]>([]);
   const animationFrameRef = useRef<number | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [activeLayer, setActiveLayer] = useState<"light" | "streets" | "satellite">("streets");
-  const [pitchMode, setPitchMode] = useState<"2D" | "3D" | "DRONE">("3D");
+  const [activeLayer, setActiveLayer] = useState<"light" | "streets" | "satellite">("satellite");
   const [hoveredCamera, setHoveredCamera] = useState<CameraDto | null>(null);
-
-  const svgMeshRef = useRef<SVGPathElement | null>(null);
-  const svgCasingRef = useRef<SVGPathElement | null>(null);
-  const svgGlowRef = useRef<SVGPathElement | null>(null);
-  const svgPathRef = useRef<SVGPathElement | null>(null);
-  const updateSvgRouteRef = useRef<(() => void) | null>(null);
 
   // Dynamically resolve points coordinates against active cameras array
   // so that moving or updating any camera immediately updates trajectory points & route
@@ -189,27 +135,21 @@ export function InvestigationMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    const initialObservation = effectivePoints.find((point) => Number.isFinite(point.latitude)
+      && Number.isFinite(point.longitude)
+      && point.latitude >= -90 && point.latitude <= 90
+      && point.longitude >= -180 && point.longitude <= 180);
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: BASEMAP_STYLES[activeLayer],
-      center: [73.8350, 18.5350], // Pune City Camera Network
-      zoom: 12.5,
-      pitch: 50, // 3D Isometric View by default
-      bearing: -18,
+      ...(initialObservation ? { center: [initialObservation.longitude, initialObservation.latitude] } : {}),
+      zoom: initialObservation ? 12 : 4.4,
+      pitch: 0,
+      bearing: 0,
       attributionControl: { compact: true },
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
-
-    const onMapRenderOrMove = () => {
-      updateSvgRouteRef.current?.();
-    };
-
-    map.on("render", onMapRenderOrMove);
-    map.on("move", onMapRenderOrMove);
-    map.on("zoom", onMapRenderOrMove);
-    map.on("pitch", onMapRenderOrMove);
-    map.on("rotate", onMapRenderOrMove);
 
     let isReadyFired = false;
     const markReady = () => {
@@ -217,7 +157,6 @@ export function InvestigationMap({
       isReadyFired = true;
       map.resize();
       setMapReady(true);
-      updateSvgRouteRef.current?.();
     };
 
     map.on("load", markReady);
@@ -238,7 +177,6 @@ export function InvestigationMap({
     // ResizeObserver so map canvas redraws if the container size changes
     const ro = new ResizeObserver(() => {
       map.resize();
-      updateSvgRouteRef.current?.();
     });
     ro.observe(containerRef.current);
     resizeObserverRef.current = ro;
@@ -262,14 +200,13 @@ export function InvestigationMap({
     if (!map) return;
     map.setStyle(BASEMAP_STYLES[styleKey]);
 
-    const restoreRouteAndMesh = () => {
+    const restoreRouteLayers = () => {
       if (!map.isStyleLoaded()) return;
       try {
-        const currentWaypoints: [number, number][] = effectivePoints.map((p) => [p.longitude, p.latitude]);
         const validCoords =
-          roadCoordinatesRef.current && roadCoordinatesRef.current.length >= 2
+          roadCoordinatesRef.current.length >= 2
             ? roadCoordinatesRef.current
-            : currentWaypoints;
+            : [];
 
         const initialData: GeoJSON.GeoJSON =
           validCoords.length >= 2
@@ -300,31 +237,18 @@ export function InvestigationMap({
           if (map.isStyleLoaded()) {
             try {
               map.addSource(ROUTE_SOURCE_ID, { type: "geojson", data: initialData });
-              if (!map.getLayer("trajectory-route-casing")) {
+              if (!map.getLayer("trajectory-route-line")) {
                 map.addLayer({
-                  id: "trajectory-route-casing",
+                  id: "trajectory-route-line",
                   type: "line",
                   source: ROUTE_SOURCE_ID,
                   layout: { "line-join": "round", "line-cap": "round" },
-                  paint: { "line-color": "#021533", "line-width": 12, "line-opacity": 0.95 },
-                });
-              }
-              if (!map.getLayer("trajectory-route-glow")) {
-                map.addLayer({
-                  id: "trajectory-route-glow",
-                  type: "line",
-                  source: ROUTE_SOURCE_ID,
-                  layout: { "line-join": "round", "line-cap": "round" },
-                  paint: { "line-color": "#0284c7", "line-width": 7, "line-opacity": 1.0 },
-                });
-              }
-              if (!map.getLayer("trajectory-route-laser")) {
-                map.addLayer({
-                  id: "trajectory-route-laser",
-                  type: "line",
-                  source: ROUTE_SOURCE_ID,
-                  layout: { "line-join": "round", "line-cap": "round" },
-                  paint: { "line-color": "#38bdf8", "line-width": 3, "line-opacity": 1.0 },
+                  paint: {
+                    "line-color": "#2563a6",
+                    "line-width": 3,
+                    "line-opacity": 0.9,
+                    "line-dasharray": [1.5, 1.5],
+                  },
                 });
               }
               return true;
@@ -340,46 +264,6 @@ export function InvestigationMap({
           setTimeout(() => setOrQueueInitialRoute(), 200);
         }
 
-        // Restore mesh links if available
-        if (cameras.length > 0) {
-          const meshFeatures: GeoJSON.Feature[] = [];
-          for (let i = 0; i < cameras.length - 1; i++) {
-            meshFeatures.push({
-              type: "Feature",
-              geometry: {
-                type: "LineString",
-                coordinates: [
-                  [cameras[i].longitude, cameras[i].latitude],
-                  [cameras[i + 1].longitude, cameras[i + 1].latitude],
-                ],
-              },
-              properties: {},
-            });
-          }
-          const meshGeojson: GeoJSON.FeatureCollection = {
-            type: "FeatureCollection",
-            features: meshFeatures,
-          };
-
-          const meshSrc = map.getSource(MESH_LINKS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
-          if (meshSrc) {
-            meshSrc.setData(meshGeojson);
-          } else {
-            map.addSource(MESH_LINKS_SOURCE_ID, { type: "geojson", data: meshGeojson });
-            if (!map.getLayer("camera-mesh-layer")) {
-              map.addLayer({
-                id: "camera-mesh-layer",
-                type: "line",
-                source: MESH_LINKS_SOURCE_ID,
-                paint: {
-                  "line-color": "#0284c7",
-                  "line-width": 1.5,
-                  "line-opacity": 0.35,
-                },
-              });
-            }
-          }
-        }
       } catch (err) {
         console.error("Error restoring route layers after style switch:", err);
       }
@@ -394,120 +278,53 @@ export function InvestigationMap({
     const onStyleReady = () => {
       if (map.isStyleLoaded()) {
         map.off("styledata", onStyleReady);
-        restoreRouteAndMesh();
+        restoreRouteLayers();
       }
     };
 
     if (map.isStyleLoaded()) {
-      restoreRouteAndMesh();
+      restoreRouteLayers();
     } else {
       map.on("styledata", onStyleReady);
     }
   };
 
-  const handlePitchPreset = (mode: "2D" | "3D" | "DRONE") => {
-    const map = mapRef.current;
-    if (!map) return;
-    setPitchMode(mode);
-
-    const targetPitch = mode === "2D" ? 0 : mode === "3D" ? 50 : 65;
-    const targetBearing = mode === "2D" ? 0 : -18;
-
-    map.easeTo({
-      pitch: targetPitch,
-      bearing: targetBearing,
-      duration: 900,
-    });
-  };
-
-  // Render camera network mesh and tactical camera pins
+  // Render independent camera locations
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || cameras.length === 0) return;
+    if (!map || !mapReady) return;
 
     // Clear old camera markers
     cameraMarkersRef.current.forEach((m) => m.remove());
     cameraMarkersRef.current = [];
 
-    // 1. Mesh links between adjacent cameras
-    const meshFeatures: GeoJSON.Feature[] = [];
-    for (let i = 0; i < cameras.length - 1; i++) {
-      meshFeatures.push({
-        type: "Feature",
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [cameras[i].longitude, cameras[i].latitude],
-            [cameras[i + 1].longitude, cameras[i + 1].latitude],
-          ],
-        },
-        properties: {},
-      });
-    }
+    // Camera locations are independent observations. Never connect adjacent array entries:
+    // a line is drawn only when a persisted, validated trajectory or route edge exists.
 
-    const meshGeojson: GeoJSON.FeatureCollection = {
-      type: "FeatureCollection",
-      features: meshFeatures,
-    };
-
-    const setOrQueueMesh = () => {
-      const meshSrc = map.getSource(MESH_LINKS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
-      if (meshSrc) {
-        meshSrc.setData(meshGeojson);
-        return true;
-      }
-      if (map.isStyleLoaded()) {
-        try {
-          map.addSource(MESH_LINKS_SOURCE_ID, { type: "geojson", data: meshGeojson });
-          if (!map.getLayer("camera-mesh-layer")) {
-            map.addLayer({
-              id: "camera-mesh-layer",
-              type: "line",
-              source: MESH_LINKS_SOURCE_ID,
-              paint: {
-                "line-color": "#0284c7",
-                "line-width": 1.5,
-                "line-opacity": 0.35,
-              },
-            });
-          }
-          return true;
-        } catch (err) {
-          console.error("FAILED TO ADD MESH LAYER:", err);
-        }
-      }
-      return false;
-    };
-
-    if (!setOrQueueMesh()) {
-      map.once("styledata", () => setOrQueueMesh());
-      setTimeout(() => setOrQueueMesh(), 200);
-    }
-
-    // 2. Render sleek tactical CCTV camera pins for cameras NOT in active trajectory
+    // Render camera markers for cameras not already represented by trajectory checkpoints
     const activeCameraIds = new Set(effectivePoints.map((p) => p.cameraId));
 
     cameras.forEach((camera) => {
       if (activeCameraIds.has(camera.id)) return; // Checkpoint badge rendered separately
 
-      const el = document.createElement("div");
-      el.className = "cursor-pointer z-10 select-none";
-      const statusColor =
-        camera.status === "ONLINE"
-          ? "bg-emerald-400 shadow-xs shadow-emerald-400/50"
-          : camera.status === "PROCESSING"
-            ? "bg-amber-400"
-            : "bg-slate-400";
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "investigation-camera-marker";
+      el.title = camera.name;
+      el.setAttribute("aria-label", "Select camera " + camera.name);
 
-      el.innerHTML = `
-        <div class="group flex flex-col items-center transform-gpu transition-transform duration-150 ease-out hover:scale-115">
-          <div class="flex items-center gap-1.5 rounded-full border border-slate-700/90 bg-slate-950/95 px-2.5 py-1 text-[10px] font-mono font-black text-white shadow-md transition-colors group-hover:border-sky-400 group-hover:bg-slate-900 group-hover:shadow-sky-500/30">
-            <span class="h-2 w-2 rounded-full ${statusColor}"></span>
-            <span class="tracking-wider">${camera.id}</span>
-          </div>
-          <div class="h-1.5 w-0.5 bg-slate-800 shadow-sm mt-0.5"></div>
-        </div>
-      `;
+      const markerDot = document.createElement("span");
+      markerDot.className = "investigation-camera-marker-dot";
+      markerDot.style.backgroundColor =
+        camera.sourceType === "PUBLIC_CATALOG" ? "#16835d"
+        : camera.sourceType === "GOVERNMENT_API" ? "#2563a6"
+        : "#64748b";
+
+      const markerLabel = document.createElement("span");
+      markerLabel.className = "investigation-camera-marker-label";
+      markerLabel.textContent = camera.id;
+
+      el.append(markerDot, markerLabel);
 
       el.addEventListener("mouseenter", () => {
         setHoveredCamera((prev) => (prev?.id === camera.id ? prev : camera));
@@ -519,6 +336,7 @@ export function InvestigationMap({
         e.stopPropagation();
         e.preventDefault();
         setHoveredCamera(camera);
+        onSelectCamera?.(camera);
       });
 
       const marker = new maplibregl.Marker({ element: el })
@@ -527,7 +345,7 @@ export function InvestigationMap({
 
       cameraMarkersRef.current.push(marker);
     });
-  }, [cameras, effectivePoints, mapReady, activeLayer]);
+  }, [cameras, effectivePoints, mapReady, activeLayer, onSelectCamera]);
 
   // Render trajectory route line along real roads and numbered checkpoint badges
   useEffect(() => {
@@ -551,59 +369,19 @@ export function InvestigationMap({
 
     const rawWaypoints: [number, number][] = effectivePoints.map((p) => [p.longitude, p.latitude]);
 
-    const updateSvg = () => {
-      const map = mapRef.current;
-      if (!map) return;
-
-      const pathCoords =
-        roadCoordinatesRef.current.length >= 2
-          ? roadCoordinatesRef.current
-          : rawWaypoints;
-
-      if (pathCoords.length >= 2) {
-        const pts = pathCoords.map(([lng, lat]) => map.project([lng, lat]));
-        const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-
-        if (svgCasingRef.current) svgCasingRef.current.setAttribute("d", d);
-        if (svgGlowRef.current) svgGlowRef.current.setAttribute("d", d);
-        if (svgPathRef.current) svgPathRef.current.setAttribute("d", d);
-      } else {
-        if (svgCasingRef.current) svgCasingRef.current.setAttribute("d", "");
-        if (svgGlowRef.current) svgGlowRef.current.setAttribute("d", "");
-        if (svgPathRef.current) svgPathRef.current.setAttribute("d", "");
-      }
-
-      if (cameras.length > 1 && svgMeshRef.current) {
-        let meshD = "";
-        for (let i = 0; i < cameras.length - 1; i++) {
-          const p1 = map.project([cameras[i].longitude, cameras[i].latitude]);
-          const p2 = map.project([cameras[i + 1].longitude, cameras[i + 1].latitude]);
-          meshD += `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} `;
-        }
-        svgMeshRef.current.setAttribute("d", meshD);
-      }
-    };
-
-    updateSvgRouteRef.current = updateSvg;
-    updateSvg();
-
     const applyRouteGeojson = (coordinates: [number, number][]) => {
       roadCoordinatesRef.current = coordinates;
-      updateSvgRouteRef.current?.();
-      if (coordinates.length < 2) return;
-      const data: GeoJSON.GeoJSON = {
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates,
-            },
-            properties: {},
-          },
-        ],
-      };
+
+      const data: GeoJSON.GeoJSON = coordinates.length >= 2
+        ? {
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              geometry: { type: "LineString", coordinates },
+              properties: { routeType: "EXTERNAL_ROUTING_ESTIMATE" },
+            }],
+          }
+        : { type: "FeatureCollection", features: [] };
 
       const setRouteData = () => {
         try {
@@ -614,35 +392,7 @@ export function InvestigationMap({
             map.addSource(ROUTE_SOURCE_ID, { type: "geojson", data });
           }
 
-          if (map.isStyleLoaded()) {
-            if (!map.getLayer("trajectory-route-casing")) {
-              map.addLayer({
-                id: "trajectory-route-casing",
-                type: "line",
-                source: ROUTE_SOURCE_ID,
-                layout: { "line-join": "round", "line-cap": "round" },
-                paint: { "line-color": "#021533", "line-width": 12, "line-opacity": 0.95 },
-              });
-            }
-            if (!map.getLayer("trajectory-route-glow")) {
-              map.addLayer({
-                id: "trajectory-route-glow",
-                type: "line",
-                source: ROUTE_SOURCE_ID,
-                layout: { "line-join": "round", "line-cap": "round" },
-                paint: { "line-color": "#0284c7", "line-width": 7, "line-opacity": 1.0 },
-              });
-            }
-            if (!map.getLayer("trajectory-route-laser")) {
-              map.addLayer({
-                id: "trajectory-route-laser",
-                type: "line",
-                source: ROUTE_SOURCE_ID,
-                layout: { "line-join": "round", "line-cap": "round" },
-                paint: { "line-color": "#38bdf8", "line-width": 3, "line-opacity": 1.0 },
-              });
-            }
-          }
+
         } catch (err) {
           console.error("Error setting route data:", err);
         }
@@ -662,37 +412,46 @@ export function InvestigationMap({
       setTimeout(setRouteData, 1200);
     };
 
-    // Immediately render initial route using current camera waypoints
-    applyRouteGeojson(rawWaypoints);
+    // Render a route only when the routing provider returns an actual road-network path.
+    // No straight-line or synthetic fallback is presented as a vehicle route.
+    applyRouteGeojson([]);
 
-    // Fetch real road routing asynchronously and update line to follow actual roads
+    // Fetch an estimated road-network connection asynchronously
     let isCancelled = false;
     fetchRoadRoute(rawWaypoints).then((roadCoords) => {
       if (isCancelled || !mapRef.current) return;
       applyRouteGeojson(roadCoords);
-      updateSvgRouteRef.current?.();
+
     });
 
-    // Numbered 3D floating checkpoint badges with camera name pills
+    // Timestamped vehicle sightings, numbered in chronological order
     effectivePoints.forEach((point, index) => {
-      const el = document.createElement("div");
+      const el = document.createElement("button");
+      el.type = "button";
       el.className = "cursor-pointer z-20 select-none";
+      el.setAttribute("aria-label", "Select vehicle sighting " + (index + 1) + " at camera " + point.cameraId);
 
-      el.innerHTML = `
-        <div class="relative flex flex-col items-center justify-center transform-gpu transition-transform duration-150 ease-out hover:scale-110">
-          <span class="radar-ping absolute -top-2 h-14 w-14 rounded-full bg-sky-400 opacity-60 animate-ping pointer-events-none hidden"></span>
-          <div class="checkpoint-badge flex items-center gap-1.5 rounded-2xl border-2 border-white px-2.5 py-1 shadow-xl transition-all duration-200 bg-gradient-to-r from-blue-700 to-sky-700 text-white shadow-blue-500/40">
-            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-white text-blue-900 font-mono text-xs font-black shadow-xs">
-              ${index + 1}
-            </span>
-            <div class="flex flex-col text-left leading-none">
-              <span class="font-mono text-[10px] font-black tracking-wider text-white">${point.cameraId}</span>
-              <span class="text-[8px] font-bold text-sky-100 max-w-[85px] truncate">${point.cameraName.split(" - ")[0]}</span>
-            </div>
-          </div>
-          <div class="h-2.5 w-1 bg-blue-700 shadow-sm mt-0.5 rounded-full"></div>
-        </div>
-      `;
+      const badge = document.createElement("span");
+      badge.className = "checkpoint-badge flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-1 shadow-sm";
+
+      const number = document.createElement("span");
+      number.className = "flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white";
+      number.textContent = String(index + 1);
+
+      const text = document.createElement("span");
+      text.className = "flex max-w-[110px] flex-col text-left leading-tight";
+
+      const cameraIdLabel = document.createElement("span");
+      cameraIdLabel.className = "font-mono text-[10px] font-semibold text-slate-900";
+      cameraIdLabel.textContent = point.cameraId;
+
+      const cameraNameLabel = document.createElement("span");
+      cameraNameLabel.className = "max-w-[100px] truncate text-[9px] text-slate-500";
+      cameraNameLabel.textContent = (point.cameraName || "Camera").split(" - ")[0];
+
+      text.append(cameraIdLabel, cameraNameLabel);
+      badge.append(number, text);
+      el.append(badge);
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -763,11 +522,11 @@ export function InvestigationMap({
     });
   }, [selectedIndex, effectivePoints]);
 
-  // 3D animated vehicle replay along trajectory
+  // Replay only an external road-network estimate; no synthetic path is generated.
   useEffect(() => {
     if (replayToken === 0 || effectivePoints.length < 2) return;
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || roadCoordinatesRef.current.length < 2) return;
 
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -775,14 +534,9 @@ export function InvestigationMap({
 
     if (!vehicleMarkerRef.current) {
       const el = document.createElement("div");
-      el.innerHTML = `
-        <div class="relative flex flex-col items-center justify-center">
-          <span class="absolute -top-1 h-10 w-10 rounded-full bg-sky-400 animate-ping opacity-80"></span>
-          <div class="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/50 font-bold text-base border-2 border-white">
-            🚗
-          </div>
-        </div>
-      `;
+      el.className = "flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-base text-white shadow-md";
+      el.setAttribute("aria-label", "Estimated replay position");
+      el.textContent = "ðŸš—";
       vehicleMarkerRef.current = new maplibregl.Marker({ element: el })
         .setLngLat([effectivePoints[0].longitude, effectivePoints[0].latitude])
         .addTo(map);
@@ -795,10 +549,12 @@ export function InvestigationMap({
       const elapsed = time - startTime;
       const progress = Math.min(elapsed / durationMs, 1);
 
-      const pathCoords =
-        roadCoordinatesRef.current.length > 1
-          ? roadCoordinatesRef.current
-          : effectivePoints.map((p) => [p.longitude, p.latitude] as [number, number]);
+      const pathCoords = roadCoordinatesRef.current;
+      if (pathCoords.length < 2) {
+        vehicleMarkerRef.current?.remove();
+        vehicleMarkerRef.current = null;
+        return;
+      }
 
       const totalSegments = pathCoords.length - 1;
       const currentSegmentFloat = progress * totalSegments;
@@ -838,44 +594,39 @@ export function InvestigationMap({
 
   const handleResetView = () => {
     const map = mapRef.current;
-    if (!map) return;
-    if (effectivePoints.length > 1) {
-      const bounds = new maplibregl.LngLatBounds();
-      effectivePoints.forEach((p) => bounds.extend([p.longitude, p.latitude]));
-      map.fitBounds(bounds, {
-        padding: { top: 85, bottom: 85, left: 75, right: 75 },
-        maxZoom: 13.5,
-        duration: 900,
-      });
-    } else {
-      map.easeTo({
-        center: [73.8350, 18.5350],
-        zoom: 12.5,
-        pitch: pitchMode === "2D" ? 0 : pitchMode === "3D" ? 50 : 65,
-        bearing: pitchMode === "2D" ? 0 : -18,
-        duration: 900,
-      });
+    if (!map || effectivePoints.length === 0) return;
+    if (effectivePoints.length === 1) {
+      const point = effectivePoints[0];
+      map.easeTo({ center: [point.longitude, point.latitude], zoom: 13, duration: 900 });
+      return;
     }
+    const bounds = new maplibregl.LngLatBounds();
+    effectivePoints.forEach((point) => bounds.extend([point.longitude, point.latitude]));
+    map.fitBounds(bounds, {
+      padding: { top: 85, bottom: 85, left: 75, right: 75 },
+      maxZoom: 13.5,
+      duration: 900,
+    });
   };
 
   return (
     <div className="flex flex-col gap-2.5 w-full">
-      {/* Dedicated Map Top Control Bar (Above Map Box / Section) */}
+      {/* Map controls */}
       <div className="flex items-center justify-between gap-3 rounded-lg border-1.5 border-slate-400 bg-white px-3.5 py-2">
-        {/* Left: 3D Smart City Mesh Badge */}
+        {/* Camera inventory status */}
         <div className="flex items-center gap-2">
           <span className="flex h-2.5 w-2.5 rounded-full bg-slate-700" />
           <div className="flex items-center gap-1.5 font-mono leading-none">
-            <span className="text-[11px] font-extrabold tracking-wider text-slate-900">
-              PUNE 3D MESH
+            <span className="text-[11px] font-semibold tracking-wide text-slate-900">
+              CAMERA NETWORK
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 font-bold">
-              {cameras.length} NODES
+              {cameras.length} CAMERAS
             </span>
           </div>
         </div>
 
-        {/* Right: Map Layers, 3D Tilt Presets & Fit */}
+        {/* Basemap and view controls */}
         <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
           {/* Basemap Styles */}
           <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 p-0.5">
@@ -899,7 +650,7 @@ export function InvestigationMap({
                   : "text-slate-800 hover:bg-slate-200/70"
               }`}
             >
-              Satellite
+              Dark
             </button>
             <button
               type="button"
@@ -910,49 +661,7 @@ export function InvestigationMap({
                   : "text-slate-800 hover:bg-slate-200/70"
               }`}
             >
-              Canvas
-            </button>
-          </div>
-
-          <div className="h-4 w-px bg-slate-300 mx-0.5" />
-
-          {/* 3D Angle Presets */}
-          <div className="flex items-center gap-0.5 rounded-md border border-slate-300 bg-slate-100 p-0.5">
-            <button
-              type="button"
-              onClick={() => handlePitchPreset("2D")}
-              title="2D Top-Down View"
-              className={`rounded px-2 py-1 text-[11px] font-mono font-semibold transition-all cursor-pointer ${
-                pitchMode === "2D"
-                  ? "bg-slate-900 text-white font-bold"
-                  : "text-slate-800 hover:bg-slate-200/70"
-              }`}
-            >
-              2D
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePitchPreset("3D")}
-              title="3D Isometric 50° View"
-              className={`rounded px-2 py-1 text-[11px] font-mono font-semibold transition-all cursor-pointer ${
-                pitchMode === "3D"
-                  ? "bg-slate-900 text-white font-bold"
-                  : "text-slate-800 hover:bg-slate-200/70"
-              }`}
-            >
-              3D Iso
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePitchPreset("DRONE")}
-              title="3D Drone Angle 65° View"
-              className={`rounded px-2 py-1 text-[11px] font-mono font-semibold transition-all cursor-pointer ${
-                pitchMode === "DRONE"
-                  ? "bg-slate-900 text-white font-bold"
-                  : "text-slate-800 hover:bg-slate-200/70"
-              }`}
-            >
-              Drone
+              Light
             </button>
           </div>
 
@@ -964,7 +673,7 @@ export function InvestigationMap({
             title="Fit Route to Bounds"
             className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
           >
-            🎯 Fit
+            ðŸŽ¯ Fit
           </button>
         </div>
       </div>
@@ -973,99 +682,50 @@ export function InvestigationMap({
       <div
         ref={containerRef}
         className="relative w-full overflow-hidden rounded-lg border-1.5 border-slate-400 bg-slate-100"
-        style={{ height: "560px" }}
+        style={{ height: "min(70vh, 760px)", minHeight: "520px" }}
       >
-        {/* Tactical HUD Corner Reticles */}
+        {/* Map overlay */}
         <div className="pointer-events-none absolute top-2 left-2 z-10 h-3.5 w-3.5 border-t-2 border-l-2 border-slate-600" />
         <div className="pointer-events-none absolute top-2 right-2 z-10 h-3.5 w-3.5 border-t-2 border-r-2 border-slate-600" />
         <div className="pointer-events-none absolute bottom-2 left-2 z-10 h-3.5 w-3.5 border-b-2 border-l-2 border-slate-600" />
         <div className="pointer-events-none absolute bottom-2 right-2 z-10 h-3.5 w-3.5 border-b-2 border-r-2 border-slate-600" />
-        {/* Real-time Google Maps Navigation Route SVG Overlay */}
-        <svg
-          className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible"
-          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-        >
-          <defs>
-            <filter id="route-glow-filter" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="1" stdDeviation="3" floodColor="#0284c7" floodOpacity="0.75" />
-            </filter>
-          </defs>
-          {/* Camera network mesh links */}
-          <path
-            ref={svgMeshRef}
-            fill="none"
-            stroke="#0284c7"
-            strokeWidth="1.5"
-            strokeOpacity="0.3"
-            strokeDasharray="4 4"
-          />
-          {/* Trajectory Route - Deep Navy Casing */}
-          <path
-            ref={svgCasingRef}
-            fill="none"
-            stroke="#021533"
-            strokeWidth="11"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeOpacity="0.9"
-          />
-          {/* Trajectory Route - Vibrant Google Navigation Blue */}
-          <path
-            ref={svgGlowRef}
-            fill="none"
-            stroke="#2563eb"
-            strokeWidth="7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeOpacity="1"
-            filter="url(#route-glow-filter)"
-          />
-          {/* Trajectory Route - Laser Cyan Core */}
-          <path
-            ref={svgPathRef}
-            fill="none"
-            stroke="#38bdf8"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeOpacity="1"
-          />
-        </svg>
+        {/* Route and camera-network overlay */}
 
 
 
-      {/* 3D Camera Hover Telemetry Card */}
+
+      {/* Selected camera details */}
       {hoveredCamera && (
-        <div className="pointer-events-none absolute bottom-5 left-5 z-20 w-72 rounded-2xl border border-slate-200 bg-white/95 p-4 backdrop-blur-2xl shadow-xl">
+        <div className="pointer-events-none absolute bottom-5 left-5 z-20 w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-xs" />
-              <span className="font-mono text-xs font-black text-slate-900">{hoveredCamera.id}</span>
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-500" />
+              <span className="font-mono text-xs font-semibold text-slate-900">{hoveredCamera.id}</span>
             </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-              {hoveredCamera.status}
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+              {hoveredCamera.sourceStatus || hoveredCamera.status || "Unknown"}
             </span>
           </div>
 
           <div className="mt-2 text-xs font-bold text-slate-800">{hoveredCamera.name}</div>
 
-          <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-[10px] text-slate-600 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-            <div>Facing: <span className="text-sky-700 font-bold">{hoveredCamera.direction}</span></div>
-            <div>Optical: <span className="text-slate-800 font-semibold">4K UHD</span></div>
+          <div className="mt-2.5 grid grid-cols-2 gap-1.5 rounded-md border border-slate-200 bg-slate-50 p-2.5 text-[10px] text-slate-600">
+            <div>Facing: <span className="font-medium text-slate-800">{hoveredCamera.direction || "Unknown"}</span></div>
             <div>Lat: <span className="text-slate-700">{hoveredCamera.latitude.toFixed(4)}</span></div>
             <div>Lng: <span className="text-slate-700">{hoveredCamera.longitude.toFixed(4)}</span></div>
           </div>
         </div>
       )}
 
-      {/* Route Checkpoints Detected Badge */}
+      {/* Stored sightings count; road connection is an external routing estimate */}
       {points.length > 0 && (
         <div className="absolute bottom-5 right-5 z-10 flex items-center gap-2.5 rounded-md border-1.5 border-slate-400 bg-white px-3.5 py-2 text-xs font-mono text-slate-900">
           <span className="h-2 w-2 rounded-full bg-slate-800" />
-          <span className="font-bold text-slate-900">{points.length} Checkpoints Connected</span>
+          <span className="font-semibold text-slate-900">{points.length} stored sightings</span>
         </div>
       )}
       </div>
     </div>
   );
 }
+

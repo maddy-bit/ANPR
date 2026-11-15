@@ -104,9 +104,9 @@ export function SecurityWatchlistModal() {
     <div className="rounded-2xl border border-slate-200/90 bg-white/95 p-4 backdrop-blur-md shadow-xs">
       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-sky-500 animate-pulse shadow-xs shadow-sky-400/50" />
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
           <h2 className="text-xs font-mono font-extrabold uppercase tracking-wider text-slate-900">
-            BEL Watchlist & Alert Engine
+            Watchlist & Security Alerts
           </h2>
         </div>
 
@@ -120,7 +120,7 @@ export function SecurityWatchlistModal() {
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
-            Live Alerts ({alertsLoading ? "…" : alerts.length})
+            Alerts ({alertsLoading ? "â€¦" : alerts.length})
           </button>
           <button
             type="button"
@@ -131,7 +131,7 @@ export function SecurityWatchlistModal() {
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
             }`}
           >
-            Watchlist ({watchlistLoading ? "…" : watchlist.length})
+            Watchlist ({watchlistLoading ? "â€¦" : watchlist.length})
           </button>
         </div>
       </div>
@@ -140,18 +140,18 @@ export function SecurityWatchlistModal() {
         {activeTab === "alerts" ? (
           alertsLoading ? (
             <div className="py-4 text-center text-xs font-mono text-slate-500">
-              Connecting to surveillance alert stream…
+              Loading alert recordsâ€¦
             </div>
           ) : alertsError ? (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 font-mono">
               <div className="font-bold flex items-center gap-1.5 mb-1">
-                <span>⚠</span>
+                <span>âš </span>
                 <span>Security Alerts Service Unavailable</span>
               </div>
               <p className="text-[11px] text-amber-800">{alertsError}</p>
             </div>
           ) : alerts.length === 0 ? (
-            <p className="text-xs text-slate-500 italic py-2">No security alerts triggered. Surveillance clear.</p>
+            <p className="text-xs text-slate-500 italic py-2">No alert records were returned by the service.</p>
           ) : (
             alerts.map((a, idx) => (
               <div key={a.alertId || idx} className="mb-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs shadow-xs">
@@ -189,14 +189,14 @@ export function SecurityWatchlistModal() {
               <form onSubmit={handleAddEntry} className="rounded-xl border border-slate-200 bg-white p-3 text-xs space-y-2 shadow-xs">
                 {addError && (
                   <div className="rounded-lg border border-rose-300 bg-rose-50 p-2 text-[11px] font-mono text-rose-800">
-                    ⚠ {addError}
+                    âš  {addError}
                   </div>
                 )}
                 <div>
                   <input
                     type="text"
                     required
-                    placeholder="Enter Registration Plate (e.g. MH12DE1433)"
+                    placeholder="Enter registration plate"
                     value={newPlate}
                     onChange={(e) => setNewPlate(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-slate-50 p-2 font-mono text-xs text-slate-900 uppercase focus:border-sky-500 focus:bg-white focus:outline-none"
@@ -229,19 +229,19 @@ export function SecurityWatchlistModal() {
                   disabled={isSubmitting}
                   className="w-full rounded-lg bg-sky-600 py-1.5 text-xs font-bold text-white hover:bg-sky-700 transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  {isSubmitting ? "Registering Target…" : "Register Watchlist Target"}
+                  {isSubmitting ? "Registering Targetâ€¦" : "Register Watchlist Target"}
                 </button>
               </form>
             )}
 
             {watchlistLoading ? (
               <div className="py-4 text-center text-xs font-mono text-slate-500">
-                Fetching registered target list…
+                Fetching registered target listâ€¦
               </div>
             ) : watchlistError ? (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 font-mono">
                 <div className="font-bold flex items-center gap-1.5 mb-1">
-                  <span>⚠</span>
+                  <span>âš </span>
                   <span>Watchlist Service Unavailable</span>
                 </div>
                 <p className="text-[11px] text-amber-800">{watchlistError}</p>
@@ -265,3 +265,4 @@ export function SecurityWatchlistModal() {
     </div>
   );
 }
+

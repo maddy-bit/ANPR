@@ -117,10 +117,16 @@ class IdentityScorer:
 
         # 2. Re-ID model compatibility & embedding score
         reid_incompatible = False
+        incompatible_reasons = []
         if obs1.reid_model_name and obs2.reid_model_name and obs1.reid_model_name != obs2.reid_model_name:
             reid_incompatible = True
+            incompatible_reasons.append(f"model: {obs1.reid_model_name} vs {obs2.reid_model_name}")
+        if obs1.reid_model_version and obs2.reid_model_version and obs1.reid_model_version != obs2.reid_model_version:
+            reid_incompatible = True
+            incompatible_reasons.append(f"version: {obs1.reid_model_version} vs {obs2.reid_model_version}")
         if obs1.reid_dimension and obs2.reid_dimension and obs1.reid_dimension != obs2.reid_dimension:
             reid_incompatible = True
+            incompatible_reasons.append(f"dim: {obs1.reid_dimension} vs {obs2.reid_dimension}")
 
         if obs1.reid_embedding and obs2.reid_embedding and not reid_incompatible:
             vec1 = np.array(obs1.reid_embedding, dtype=np.float32)
@@ -162,8 +168,17 @@ class IdentityScorer:
         is_physically_impossible = (eval_res.feasibility == FeasibilityStatus.IMPOSSIBLE_TRANSITION)
         is_topology_unknown = (eval_res.feasibility == FeasibilityStatus.FEASIBILITY_UNKNOWN)
 
-        # Baseline multi-signal weighted combination
-        combined = (0.45 * s_plate) + (0.30 * s_reid) + (0.15 * s_type) + (0.10 * s_topo)
+        # Multi-signal weighted combination using all six configured signals
+        # (weights loaded from config; they sum to 1.0). Previously color and
+        # temporal signals were computed but excluded from the decision.
+        combined = (
+            self.w_plate * s_plate
+            + self.w_reid * s_reid
+            + self.w_color * s_color
+            + self.w_type * s_type
+            + self.w_temp * s_temp
+            + self.w_topo * s_topo
+        )
 
         # Decision Logic:
         decision = "UNCERTAIN"
@@ -180,7 +195,8 @@ class IdentityScorer:
             reason = f"High-confidence plate conflict overrides visual similarity: '{obs1.license_plate}' vs '{obs2.license_plate}'"
         elif reid_incompatible:
             decision = "UNCERTAIN"
-            reason = f"Incompatible Re-ID models ({obs1.reid_model_name} vs {obs2.reid_model_name}); cross-model comparison rejected."
+            reasons_str = "; ".join(incompatible_reasons) if incompatible_reasons else "metadata mismatch"
+            reason = f"Incompatible Re-ID configuration ({reasons_str}); cross-model comparison rejected."
         elif is_topology_unknown:
             decision = "UNCERTAIN"
             reason = f"Camera topology/coordinates unconfigured; cannot verify physical feasibility ({eval_res.reason})."

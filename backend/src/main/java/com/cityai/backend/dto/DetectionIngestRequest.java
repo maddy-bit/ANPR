@@ -27,8 +27,39 @@ public record DetectionIngestRequest(
         List<Double> bbox,
         String reidModelName,
         String reidModelVersion,
-        Integer reidDimension
+        Integer reidDimension,
+        String idempotencyKey,
+        UUID processingRunId
 ) {
+    /**
+     * Backward-compatible 17-parameter constructor for existing callers before B4.3.
+     */
+    public DetectionIngestRequest(
+            String cameraId,
+            Instant timestamp,
+            String vehicleClass,
+            Double detectionConfidence,
+            String plateTextRaw,
+            String plateTextNormalized,
+            Double plateConfidence,
+            Integer trackId,
+            Integer frameNumber,
+            String imagePath,
+            Double reidConfidence,
+            List<Double> reidEmbedding,
+            UUID videoUploadId,
+            List<Double> bbox,
+            String reidModelName,
+            String reidModelVersion,
+            Integer reidDimension
+    ) {
+        this(cameraId, timestamp, vehicleClass, detectionConfidence,
+                plateTextRaw, plateTextNormalized, plateConfidence,
+                trackId, frameNumber, imagePath, reidConfidence, reidEmbedding,
+                videoUploadId, bbox, reidModelName, reidModelVersion, reidDimension,
+                null, null);
+    }
+
     /**
      * Backward-compatible 14-parameter constructor for existing A1-A4 callers.
      */
@@ -51,6 +82,6 @@ public record DetectionIngestRequest(
         this(cameraId, timestamp, vehicleClass, detectionConfidence,
                 plateTextRaw, plateTextNormalized, plateConfidence,
                 trackId, frameNumber, imagePath, reidConfidence, reidEmbedding,
-                videoUploadId, bbox, null, null, null);
+                videoUploadId, bbox, null, null, null, null, null);
     }
 }

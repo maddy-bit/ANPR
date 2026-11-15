@@ -586,46 +586,12 @@ public class GlobalTrajectoryService {
         return (Math.abs(lat) < 1e-4 && Math.abs(lon) < 1e-4) || lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0;
     }
 
-    private static final class RoadEdgeLookup {
-        private final double roadDistanceMeters;
-        private final Double minTravelTimeSec;
-        private final Double maxTravelTimeSec;
-        private final String roadName;
-        private final boolean isVerified;
-
-        public RoadEdgeLookup(
-                double roadDistanceMeters,
-                Double minTravelTimeSec,
-                Double maxTravelTimeSec,
-                String roadName,
-                boolean isVerified) {
-            this.roadDistanceMeters = roadDistanceMeters;
-            this.minTravelTimeSec = minTravelTimeSec;
-            this.maxTravelTimeSec = maxTravelTimeSec;
-            this.roadName = roadName;
-            this.isVerified = isVerified;
-        }
-
-        public double roadDistanceMeters() {
-            return roadDistanceMeters;
-        }
-
-        public Double minTravelTimeSec() {
-            return minTravelTimeSec;
-        }
-
-        public Double maxTravelTimeSec() {
-            return maxTravelTimeSec;
-        }
-
-        public String roadName() {
-            return roadName;
-        }
-
-        public boolean isVerified() {
-            return isVerified;
-        }
-    }
+    private record RoadEdgeLookup(
+            double roadDistanceMeters,
+            Double minTravelTimeSec,
+            Double maxTravelTimeSec,
+            String roadName,
+            boolean isVerified) {}
 
     /**
      * Deterministic observation comparator:

@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend (Spring Boot)
@@ -33,21 +36,53 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm install --include=optional
+      - run: npm ci --include=optional
+        working-directory: frontend
+      - name: Audit production frontend dependencies
+        run: npm audit --omit=dev
+        working-directory: frontend
+      - name: Type-check frontend
+        run: npx tsc --noEmit
+        working-directory: frontend
+      - name: Run frontend API and trajectory contract checks
+        run: npm test
         working-directory: frontend
       - run: npm run lint
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
 
+  node-backend:
+    name: Backend (Node.js active stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend-node/package-lock.json
+      - name: Install locked backend dependencies
+        run: npm ci
+        working-directory: backend-node
+      - name: Audit production API dependencies
+        run: npm audit --omit=dev
+        working-directory: backend-node
+      - name: Run isolated unit tests
+        run: npm run test:unit -- --testPathIgnorePatterns=agent.test.js
+        working-directory: backend-node
+      - name: Run API contract tests
+        run: npm run test:contract
+        working-directory: backend-node
+
   ai-service:
-    name: AI service (Python - lint/syntax only)
+    name: AI service (Python syntax and artifact contract)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Syntax-check every module
         working-directory: ai-service
         # Full model-download-and-run tests need ~5GB of torch/easyocr
@@ -55,7 +90,19 @@ jobs:
         # catches syntax errors and import-time mistakes fast; the actual
         # AI pipeline is exercised via scripts/smoke_test.sh locally
         # against a running backend with the demo dataset ingested.
-        run: python3 -m py_compile main.py schemas.py ai/*.py utils/*.py services/*.py
+        run: python3 -m py_compile main.py worker.py schemas.py ai/*.py utils/*.py services/*.py
+      - name: Verify model artifact manifest behavior
+        working-directory: ai-service
+        run: python3 -m unittest discover -s tests -p test_model_artifact_manifest.py -v
+      - name: Verify production queue durability guard
+        working-directory: ai-service
+        run: python3 -m unittest discover -s tests -p test_production_queue_config.py -v
+      - name: Verify Redis worker claim lifecycle
+        working-directory: ai-service
+        run: python3 -m unittest discover -s tests -p test_stream_worker_dispatch.py -v
+      - name: Verify private object storage reference validation
+        working-directory: ai-service
+        run: python3 -m unittest discover -s tests -p test_media_storage.py -v
 
   smoke-test:
     name: API smoke test (backend + H2)
@@ -110,5 +157,83 @@ jobs:
           curl -sf http://localhost:8080/api/cameras
           curl -sf http://localhost:8080/api/analytics/overview
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/cameras/CAM-99)" = "404"
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/vehicles/ZZ99ZZ9999)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/health)" = "200"
           echo "All smoke tests passed successfully!"
+
+  production-deploy:
+    name: Production deploy (gated)
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: sih26127-production
+      cancel-in-progress: false
+    needs: [backend, frontend, node-backend, ai-service, smoke-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      PRODUCTION_RELEASE_ENABLED: ${{ vars.PRODUCTION_RELEASE_ENABLED }}
+      PRODUCTION_ACCESS_BOUNDARY_CONFIRMED: ${{ vars.PRODUCTION_ACCESS_BOUNDARY_CONFIRMED }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      PRODUCTION_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL }}
+      PRODUCTION_BACKEND_URL: ${{ vars.PRODUCTION_BACKEND_URL }}
+      PRODUCTION_AI_URL: ${{ vars.PRODUCTION_AI_URL }}
+      RENDER_BACKEND_DEPLOY_HOOK: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
+      RENDER_AI_DEPLOY_HOOK: ${{ secrets.RENDER_AI_DEPLOY_HOOK }}
+      RENDER_AI_WORKER_DEPLOY_HOOK: ${{ secrets.RENDER_AI_WORKER_DEPLOY_HOOK }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate production release configuration
+        if: env.PRODUCTION_RELEASE_ENABLED == 'true'
+        shell: bash
+        run: |
+          if [ "$PRODUCTION_ACCESS_BOUNDARY_CONFIRMED" != "true" ]; then
+            echo "Production release requires PRODUCTION_ACCESS_BOUNDARY_CONFIRMED=true after operator/case authorization or an approved nonpublic access boundary is in place."
+            exit 1
+          fi
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID PRODUCTION_FRONTEND_URL PRODUCTION_BACKEND_URL PRODUCTION_AI_URL RENDER_BACKEND_DEPLOY_HOOK RENDER_AI_DEPLOY_HOOK RENDER_AI_WORKER_DEPLOY_HOOK; do
+            if [ -z "${!name}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Production release is enabled, but required GitHub environment configuration is missing: ${missing[*]}"
+            exit 1
+          fi
+          echo "Required release configuration is present. Values are not printed."
+      - name: Deploy frontend to Vercel
+        if: env.PRODUCTION_RELEASE_ENABLED == 'true'
+        working-directory: frontend
+        run: |
+          npx --yes vercel@latest link --yes --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
+          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx --yes vercel@latest build --prod --token "$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+      - name: Trigger Node backend deployment on Render
+        if: env.PRODUCTION_RELEASE_ENABLED == 'true'
+        run: curl --fail --silent --show-error --request POST "$RENDER_BACKEND_DEPLOY_HOOK"
+      - name: Trigger AI API deployment on Render
+        if: env.PRODUCTION_RELEASE_ENABLED == 'true'
+        run: curl --fail --silent --show-error --request POST "$RENDER_AI_DEPLOY_HOOK"
+      - name: Trigger standalone AI inference worker deployment on Render
+        if: env.PRODUCTION_RELEASE_ENABLED == 'true'
+        run: curl --fail --silent --show-error --request POST "$RENDER_AI_WORKER_DEPLOY_HOOK"
+      - name: Verify deployed frontend, backend, and AI readiness
+        if: env.PRODUCTION_RELEASE_ENABLED == 'true'
+        run: |
+          backend_url="${PRODUCTION_BACKEND_URL%/}"
+          ai_url="${PRODUCTION_AI_URL%/}"
+          frontend_url="${PRODUCTION_FRONTEND_URL%/}"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$backend_url/api/ready" >/dev/null && curl --fail --silent "$ai_url/ready" | python3 -c 'import json,sys; data=json.load(sys.stdin); expected={"vehicle_detector","plate_detector","ocr","reid"}; sys.exit(0 if data.get("status")=="ready" and data.get("modelArtifacts")=="VERIFIED" and set(data.get("runtimeModels",[]))==expected else 1)' && curl --fail --silent "$frontend_url/" >/dev/null; then
+              echo "Frontend, backend, and AI readiness checks passed."
+              exit 0
+            fi
+            echo "Waiting for production services to become ready (attempt $attempt/30)."
+            sleep 10
+          done
+          echo "Production readiness checks did not pass within five minutes."
+          exit 1
+

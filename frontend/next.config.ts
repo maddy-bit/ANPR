@@ -1,18 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   ...(process.env.NEXT_OUTPUT_STANDALONE === "true" ? { output: "standalone" } : {}),
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+    const backendUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8080";
     return [
-      // Proxy all /api/* to Spring backend EXCEPT /api/vahan/* which is a
-      // Next.js native API route (frontend/src/app/api/vahan/[plate]/route.ts).
-      // Next.js path regex negative lookahead syntax: (?!vahan)
+      // Proxy all /api/* to the backend (backend-node on 8080) EXCEPT /api/vahan/* and
+      // /api/yolo/* which are Next.js native API routes
+      // (frontend/src/app/api/vahan/[plate] and /api/yolo/detect).
+      // Next.js path regex negative lookahead syntax: (?!vahan\/|yolo\/)
       {
-        source: "/api/:path((?!vahan\\/).*)",
+        source: "/api/:path((?!vahan\\/|yolo\\/).*)",
         destination: `${backendUrl}/api/:path*`,
       },
       {

@@ -13,12 +13,14 @@ export function ConfidenceBadge({ value, label, size = "sm" }: ConfidenceBadgePr
 
   const pct = Math.round(value * 100);
   let color = "bg-emerald-50 text-emerald-700 border-emerald-300";
-  const dotColor = "bg-emerald-500";
+  let dotColor = "bg-emerald-500";
 
   if (pct < 60) {
     color = "bg-rose-50 text-rose-700 border-rose-300";
+    dotColor = "bg-rose-500";
   } else if (pct < 80) {
     color = "bg-amber-50 text-amber-700 border-amber-300";
+    dotColor = "bg-amber-500";
   }
 
   const padding = size === "md" ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[10px]";

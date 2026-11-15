@@ -45,10 +45,10 @@ class MultiFrameFusionService:
 
         # If only 1 observation, return it
         if len(valid_obs) == 1:
-            return valid_obs[0].text, float(valid_obs[0].confidence)
+            return str(valid_obs[0].text), float(valid_obs[0].confidence)
 
         # Prioritize valid Indian format observations
-        format_valid = [obs for obs in valid_obs if validate_plate_format(obs.text)]
+        format_valid = [obs for obs in valid_obs if obs.text and validate_plate_format(str(obs.text))]
         candidates = format_valid if format_valid else valid_obs
 
         # Group exact plate strings by frequency + weighted score sum
@@ -56,10 +56,13 @@ class MultiFrameFusionService:
         string_counts: dict[str, int] = defaultdict(int)
 
         for obs in candidates:
+            if not obs.text:
+                continue
+            txt = str(obs.text)
             # Bonus weight if plate format matches Indian pattern
-            weight = obs.confidence * (1.3 if validate_plate_format(obs.text) else 1.0)
-            string_scores[obs.text] += weight
-            string_counts[obs.text] += 1
+            weight = obs.confidence * (1.3 if validate_plate_format(txt) else 1.0)
+            string_scores[txt] += weight
+            string_counts[txt] += 1
 
         # Check if there is a dominant exact match
         best_string = max(string_scores.keys(), key=lambda k: string_scores[k])
@@ -71,9 +74,9 @@ class MultiFrameFusionService:
             return best_string, float(avg_conf)
 
         # Positional voting for string alignment (if candidates have similar lengths)
-        lengths = [len(obs.text) for obs in candidates]
+        lengths = [len(str(obs.text)) for obs in candidates if obs.text]
         common_len = Counter(lengths).most_common(1)[0][0]
-        same_len_obs = [obs for obs in candidates if len(obs.text) == common_len]
+        same_len_obs = [obs for obs in candidates if obs.text and len(str(obs.text)) == common_len]
 
         if not same_len_obs:
             avg_conf = min(0.99, string_scores[best_string] / string_counts[best_string])
@@ -85,8 +88,9 @@ class MultiFrameFusionService:
         for pos in range(common_len):
             pos_votes: dict[str, float] = defaultdict(float)
             for obs in same_len_obs:
-                char = obs.text[pos]
-                pos_votes[char] += obs.confidence
+                if obs.text:
+                    char = str(obs.text)[pos]
+                    pos_votes[char] += obs.confidence
             winning_char = max(pos_votes.keys(), key=lambda c: pos_votes[c])
             fused_chars.append(winning_char)
             char_conf_sum += pos_votes[winning_char] / len(same_len_obs)

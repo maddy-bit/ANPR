@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { CameraDto } from "@/lib/api";
+import type { CameraDto, IngestionJobStatusDto } from "@/lib/api";
 import { ingestCameraFootage, getIngestionJobStatus } from "@/lib/api";
 
 interface LiveCameraGridModalProps {
   isOpen: boolean;
   onClose: () => void;
   cameras: CameraDto[];
-  targetVehicleType?: string | null;
   onTargetDetected?: (plate: string) => void;
 }
 
@@ -22,17 +21,15 @@ export function LiveCameraGridModal({
   isOpen,
   onClose,
   cameras,
-  targetVehicleType,
   onTargetDetected,
 }: LiveCameraGridModalProps) {
   const [selectedFilter, setSelectedFilter] = useState<"ALL" | "ARCHIVED" | "STANDBY">("ALL");
   const [expandedCam, setExpandedCam] = useState<CameraDto | null>(null);
 
   // In-modal AI pipeline execution state for expanded camera
-  const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<"IDLE" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED">("IDLE");
   const [jobProgress, setJobProgress] = useState(0);
-  const [jobDetails, setJobDetails] = useState<any>(null);
+  const [jobDetails, setJobDetails] = useState<IngestionJobStatusDto["details"] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [enableDehaze, setEnableDehaze] = useState(false);
 
@@ -52,7 +49,6 @@ export function LiveCameraGridModal({
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
-    setJobId(null);
     setJobStatus("IDLE");
     setJobProgress(0);
     setJobDetails(null);
@@ -65,7 +61,6 @@ export function LiveCameraGridModal({
       setJobStatus("QUEUED");
       const res = await ingestCameraFootage(camId, enableDehaze);
       const activeJobId = res.jobId;
-      setJobId(activeJobId);
 
       pollRef.current = setInterval(async () => {
         try {
@@ -85,13 +80,13 @@ export function LiveCameraGridModal({
               setErrorMessage(statusRes.details?.error || "AI pipeline execution failed.");
             }
           }
-        } catch (pollErr: any) {
+        } catch (pollErr: unknown) {
           console.warn("Poll error for camera pipeline:", pollErr);
         }
       }, 600);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setJobStatus("FAILED");
-      setErrorMessage(err.message || "Failed to trigger AI pipeline for camera.");
+      setErrorMessage(err instanceof Error ? err.message : "Failed to trigger AI pipeline for camera.");
     }
   };
 
@@ -122,7 +117,7 @@ export function LiveCameraGridModal({
                       {cameras.length}-NODE MATRIX
                     </span>
                     <span className="text-[10px] font-mono font-semibold text-slate-500">
-                      CCTV SURVEILLANCE & RE-ID WALL
+                      RECORDED CAMERA ARCHIVE · ON-DEMAND INFERENCE
                     </span>
                   </div>
                   <h2 className="text-base font-bold tracking-tight text-slate-900 flex items-center gap-2 uppercase">

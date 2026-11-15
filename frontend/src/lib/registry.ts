@@ -1,10 +1,9 @@
 /**
- * Official Indian Vehicle Registry (VAHAN / Parivahan Sewa - MoRTH) Data Service.
- * Implements real Indian vehicle registration certificate (RC / Form 23) data structures,
- * state mappings, and live API registry lookup.
+ * Third-party vehicle registry lookup data service.
+ * The configured provider may return a subset of vehicle registration fields.
+ * This service does not issue or verify official RC/Form 23 certificates.
  *
- * NOTE: No hardcoded demo plates are stored. Vehicle records are queried live
- * via the central VAHAN API or return honest not-found / not-configured states.
+ * NOTE: No hardcoded demo plates are stored. Missing provider fields remain unknown.
  */
 
 export interface IndianVehicleRcRecord {
@@ -14,10 +13,12 @@ export interface IndianVehicleRcRecord {
   rtoCode: string;
   state: string;
   district: string;
-  rcStatus: "ACTIVE" | "SUSPENDED" | "EXPIRED" | "CANCELLED";
+  rcStatus: "ACTIVE" | "SUSPENDED" | "EXPIRED" | "CANCELLED" | "BLACKLISTED" | "UNKNOWN";
   rcStatusDate: string;
   registrationDate: string;
   fitnessUpto: string;
+  fitnessStatus: "VALID" | "EXPIRED" | "UNKNOWN";
+  taxStatus: "DATE_RETURNED" | "NOT_RETURNED";
   taxUpto: string;
   ownerSerial: string;
   ownerName: string;
@@ -34,7 +35,7 @@ export interface IndianVehicleRcRecord {
   fuelType: string;
   emissionNorms: string;
   cubicCapacity: string;
-  seatingCapacity: number;
+  seatingCapacity: number | null;
   unladenWeight: string;
   grossWeight: string;
   wheelbase: string;
@@ -45,20 +46,20 @@ export interface IndianVehicleRcRecord {
   insuranceCompany: string;
   insurancePolicyNumber: string;
   insuranceUpto: string;
-  insuranceStatus: "ACTIVE" | "EXPIRED";
+  insuranceStatus: "ACTIVE" | "EXPIRED" | "UNKNOWN";
   puccNumber: string;
   puccUpto: string;
-  puccStatus: "VALID" | "EXPIRED";
+  puccStatus: "VALID" | "EXPIRED" | "UNKNOWN";
   hypothecationBank: string | null;
-  financingStatus: "HYPOTHECATED" | "CLEAR";
+  financingStatus: "HYPOTHECATED" | "UNKNOWN";
   blacklistStatus: string;
-  challanCount: number;
+  challanCount: number | null;
   nationalPermit: string;
   fastagId: string;
   fastagBank: string;
   vahanPortalUrl: string;
-  digitalVerificationKey: string;
-  dataSource?: "LIVE_PUBLIC_API" | "VAHAN_RTO_AUTHORITY" | "SYSTEM_SEEDED";
+  digitalVerificationKey: string | null;
+  dataSource?: "THIRD_PARTY_PROVIDER_API" | "VAHAN_RTO_AUTHORITY" | "SYSTEM_SEEDED";
 }
 
 // Indian State Codes mapping
@@ -104,7 +105,7 @@ const RECORD_CACHE = new Map<string, IndianVehicleRcRecord>();
 
 /**
  * Retrieves the registry record for a vehicle plate from the session cache.
- * All plates are fetched live via fetchVehicleRegistryRecord() from the VAHAN API.
+ * Records are fetched from the configured third-party vehicle-information provider.
  */
 export function getVehicleRegistryRecord(plateRaw: string): IndianVehicleRcRecord | null {
   const cleanPlate = (plateRaw ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -134,8 +135,8 @@ export interface VahanQueryResult {
 }
 
 /**
- * Live query to VAHAN RC API route (/api/vahan/[plate]).
- * Fetches real details directly without hardcoded fabrication.
+ * Queries the server-side third-party provider route (/api/vahan/[plate]).
+ * Returned data is not an official government certificate or independent verification.
  */
 export async function fetchVehicleRegistryRecord(plateRaw: string): Promise<VahanQueryResult> {
   const cleanPlate = (plateRaw ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -162,7 +163,7 @@ export async function fetchVehicleRegistryRecord(plateRaw: string): Promise<Vaha
     const payload = await res.json().catch(() => null);
     if (res.ok && payload?.data) {
       const record = payload.data as IndianVehicleRcRecord;
-      record.dataSource = "LIVE_PUBLIC_API";
+      record.dataSource = "THIRD_PARTY_PROVIDER_API";
       RECORD_CACHE.set(cleanPlate, record);
       return { success: true, data: record };
     }
@@ -177,7 +178,7 @@ export async function fetchVehicleRegistryRecord(plateRaw: string): Promise<Vaha
     return {
       success: false,
       error: "NETWORK_ERROR",
-      message: `Failed to query VAHAN service: ${msg}`,
+      message: `Failed to query the configured vehicle-data provider: ${msg}`,
     };
   }
 }

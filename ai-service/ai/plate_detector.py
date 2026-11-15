@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -180,50 +181,51 @@ class PlateDetector:
         # 1. Primary: YOLO model prediction if available
         if self.model is not None:
             try:
-                results = self.model.predict(
+                pred_out: Any = self.model.predict(
                     vehicle_crop_bgr,
                     conf=self._conf,
                     verbose=False,
-                )[0]
+                )
+                if pred_out and len(pred_out) > 0:
+                    results: Any = pred_out[0]
+                    if getattr(results, "boxes", None) is not None and len(results.boxes) > 0:
+                        raw_boxes = []
+                        raw_scores = []
+                        raw_ratios = []
 
-                if results.boxes is not None and len(results.boxes) > 0:
-                    raw_boxes = []
-                    raw_scores = []
-                    raw_ratios = []
+                        for box in results.boxes:
+                            x1, y1, x2, y2 = (int(v) for v in box.xyxy[0].tolist())
+                            x1 = max(0, min(x1, crop_w - 1))
+                            y1 = max(0, min(y1, crop_h - 1))
+                            x2 = max(x1 + 1, min(x2, crop_w))
+                            y2 = max(y1 + 1, min(y2, crop_h))
 
-                    for box in results.boxes:
-                        x1, y1, x2, y2 = (int(v) for v in box.xyxy[0].tolist())
-                        x1 = max(0, min(x1, crop_w - 1))
-                        y1 = max(0, min(y1, crop_h - 1))
-                        x2 = max(x1 + 1, min(x2, crop_w))
-                        y2 = max(y1 + 1, min(y2, crop_h))
+                            w, h = x2 - x1, y2 - y1
+                            is_valid, area_ratio = _validate_plate_box(x1, y1, w, h, crop_w, crop_h)
+                            if not is_valid:
+                                continue
 
-                        w, h = x2 - x1, y2 - y1
-                        is_valid, area_ratio = _validate_plate_box(x1, y1, w, h, crop_w, crop_h)
-                        if not is_valid:
-                            continue
+                            raw_boxes.append([x1, y1, w, h])
+                            raw_scores.append(float(box.conf[0]))
+                            raw_ratios.append(area_ratio)
 
-                        raw_boxes.append([x1, y1, w, h])
-                        raw_scores.append(float(box.conf[0]))
-                        raw_ratios.append(area_ratio)
-
-                    if raw_boxes:
-                        indices = cv2.dnn.NMSBoxes(
-                            raw_boxes,
-                            raw_scores,
-                            score_threshold=self._conf,
-                            nms_threshold=0.35,
-                        )
-                        for i in indices:
-                            idx = i[0] if isinstance(i, (list, tuple, np.ndarray)) else i
-                            bx, by, bw, bh = raw_boxes[idx]
-                            plates.append(
-                                PlateBox(
-                                    bbox=(bx, by, bx + bw, by + bh),
-                                    confidence=raw_scores[idx],
-                                    area_ratio=raw_ratios[idx],
-                                )
+                        if raw_boxes:
+                            indices = cv2.dnn.NMSBoxes(
+                                raw_boxes,
+                                raw_scores,
+                                score_threshold=self._conf,
+                                nms_threshold=0.35,
                             )
+                            for i in indices:
+                                idx = i[0] if isinstance(i, (list, tuple, np.ndarray)) else i
+                                bx, by, bw, bh = raw_boxes[idx]
+                                plates.append(
+                                    PlateBox(
+                                        bbox=(bx, by, bx + bw, by + bh),
+                                        confidence=raw_scores[idx],
+                                        area_ratio=raw_ratios[idx],
+                                    )
+                                )
             except Exception as exc:
                 log.debug(f"YOLO plate detection failed: {exc}")
 

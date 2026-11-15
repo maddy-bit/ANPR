@@ -22,9 +22,7 @@ interface EvidenceViewerProps {
 export function EvidenceViewer({
   point,
   targetPlate = "",
-  vehicleType = "Sedan",
-  vehicleColor = "Silver",
-  customVideoUrls = {},
+   customVideoUrls = {},
   selectedIndex = null,
   totalPoints = 0,
   onNextCheckpoint,
@@ -36,22 +34,23 @@ export function EvidenceViewer({
   const [failedVideos, setFailedVideos] = useState<Record<string, boolean>>({});
 
   const activePoint = point;
-  const currentCam = activePoint?.cameraId || "CAM-01";
+  const currentCam = activePoint?.cameraId ?? "";
 
-  // Check if a video was ingested for this camera (e.g. from 4-camera video ingestion)
-  const videoUrl = customVideoUrls[currentCam] || null;
+  // Only show a recorded file when a real camera checkpoint is selected.
+  const videoUrl = currentCam ? (customVideoUrls[currentCam] || null) : null;
   const hasIngestedVideo = Boolean(videoUrl) && !failedVideos[currentCam];
 
   // =========================================================================
-  // REAL-TIME ML YOLOv8 PLATE DETECTION & TRACKING STATE
+  // Recorded-archive frame inference state
   // =========================================================================
   const [rawPlateDetected, setRawPlateDetected] = useState<boolean>(false);
+  const [videoReady, setVideoReady] = useState(false);
   const [plateBox, setPlateBox] = useState<{
     left: number;
     top: number;
     width: number;
     height: number;
-  }>({ left: 38.0, top: 53.0, width: 14.5, height: 6.8 });
+  } | null>(null);
 
   const [rawVehBox, setRawVehBox] = useState<{
     left: number;
@@ -60,13 +59,20 @@ export function EvidenceViewer({
     height: number;
   } | null>(null);
 
-  const isPlateDetected = hasIngestedVideo && rawPlateDetected;
-  const vehBox = hasIngestedVideo ? rawVehBox : null;
+  const isPlateDetected = hasIngestedVideo && videoReady && rawPlateDetected;
+  const vehBox = hasIngestedVideo && videoReady ? rawVehBox : null;
 
-  const [trackingConfidence, setTrackingConfidence] = useState<number>(0.968);
+  const [trackingConfidence, setTrackingConfidence] = useState<number | null>(null);
+  const [detectedPlate, setDetectedPlate] = useState<string | null>(null);
   const [modelTag, setModelTag] = useState<string>("YOLOv8");
 
-  // Real-time inference loop: sends current video frame to backend ML model
+  const normalizePlateValue = (value: string | null | undefined) =>
+    (value || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const isTargetMatch =
+    Boolean(normalizePlateValue(targetPlate)) &&
+    normalizePlateValue(detectedPlate) === normalizePlateValue(targetPlate);
+
+  // Analyze frames from the selected recorded video archive using the backend ML model
   useEffect(() => {
     if (!hasIngestedVideo) {
       return;
@@ -107,15 +113,25 @@ export function EvidenceViewer({
             if (data.detected && data.box) {
               consecutiveMisses = 0;
               setRawPlateDetected(true);
-              setPlateBox((prev) => ({
+              const ocrPlate = typeof data.plate === "string" && data.plate.trim()
+                ? data.plate.trim().toUpperCase()
+                : null;
+              const ocrScore = typeof data.ocr_confidence === "number" && Number.isFinite(data.ocr_confidence)
+                ? data.ocr_confidence
+                : null;
+              setDetectedPlate(ocrPlate);
+              setTrackingConfidence(ocrScore);
+              setPlateBox((prev) => prev ? ({
                 left: +(prev.left * 0.35 + data.box.left * 0.65).toFixed(2),
                 top: +(prev.top * 0.35 + data.box.top * 0.65).toFixed(2),
                 width: +(prev.width * 0.35 + data.box.width * 0.65).toFixed(2),
                 height: +(prev.height * 0.35 + data.box.height * 0.65).toFixed(2),
+              }) : ({
+                left: data.box.left,
+                top: data.box.top,
+                width: data.box.width,
+                height: data.box.height,
               }));
-              if (data.confidence) {
-                setTrackingConfidence(data.confidence);
-              }
               if (data.model) {
                 setModelTag(data.model);
               }
@@ -127,6 +143,8 @@ export function EvidenceViewer({
               if (consecutiveMisses > 4) {
                 setRawPlateDetected(false);
                 setRawVehBox(null);
+                setDetectedPlate(null);
+                setTrackingConfidence(null);
               }
             }
           }
@@ -182,7 +200,7 @@ export function EvidenceViewer({
               }`}
             />
             <h2 className="text-sm sm:text-base font-bold uppercase tracking-wide text-slate-950 whitespace-nowrap">
-              CCTV Evidence Frame
+              Recorded Video Evidence
             </h2>
           </div>
           <div className="flex items-center gap-1.5">
@@ -191,17 +209,21 @@ export function EvidenceViewer({
             </span>
             <span
               className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-xs border ${
-                hasIngestedVideo && isPlateDetected
+                hasIngestedVideo && videoReady && isTargetMatch
                   ? "bg-emerald-100 text-emerald-900 border-emerald-300"
                   : hasIngestedVideo
                   ? "bg-amber-100 text-amber-900 border-amber-300"
                   : "bg-slate-100 text-slate-700 border-slate-300"
               }`}
             >
-              {hasIngestedVideo && isPlateDetected
-                ? "TARGET TRACKED"
+              {hasIngestedVideo && videoReady && isTargetMatch
+                ? "TARGET MATCH"
+                : hasIngestedVideo && isPlateDetected && detectedPlate
+                ? "OTHER PLATE"
+                : hasIngestedVideo && isPlateDetected
+                ? "PLATE REGION"
                 : hasIngestedVideo
-                ? "SCANNING FEED"
+                ? "SCANNING ARCHIVE"
                 : "STANDBY"}
             </span>
           </div>
@@ -222,7 +244,7 @@ export function EvidenceViewer({
                 {!activePoint ? (
                   <div className="relative flex min-h-[220px] sm:min-h-[260px] w-full flex-col items-center justify-center bg-black p-6 text-center font-mono">
                     <span className="text-3xl mb-2">📹</span>
-                    <span className="text-xs text-slate-300 font-bold uppercase tracking-wider">CCTV Evidence Standby</span>
+                    <span className="text-xs text-slate-300 font-bold uppercase tracking-wider">Archive Evidence Standby</span>
                     <span className="text-[11px] text-slate-500 mt-1 max-w-xs">
                       Select a checkpoint from the detection timeline to inspect evidence frames and corridor video.
                     </span>
@@ -232,11 +254,11 @@ export function EvidenceViewer({
                   <div className="relative flex min-h-[220px] sm:min-h-[260px] w-full items-center justify-center bg-black overflow-hidden">
                     {/* Top-Left Minimal Recording Status */}
                     <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5 rounded-xs bg-black/85 px-2.5 py-1 text-[11px] font-mono text-emerald-400 font-bold border border-emerald-500/40 backdrop-blur-xs">
-                      <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                      <span>REC • {activePoint?.cameraId}</span>
+                      <span className="h-2 w-2 rounded-full bg-slate-400" />
+                      <span>ARCHIVE PLAYBACK • {activePoint?.cameraId}</span>
                     </div>
 
-                    {/* Primary HTML5 CCTV Video Stream */}
+                    {/* Recorded camera archive playback */}
                     <video
                       ref={videoRef}
                       key={videoUrl}
@@ -247,12 +269,21 @@ export function EvidenceViewer({
                       playsInline
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
+                      onLoadStart={() => {
+                        setVideoReady(false);
+                        setRawPlateDetected(false);
+                        setRawVehBox(null);
+                        setPlateBox(null);
+                        setTrackingConfidence(null);
+                        setDetectedPlate(null);
+                      }}
+                      onLoadedData={() => setVideoReady(true)}
                       onError={() => setFailedVideos((prev) => ({ ...prev, [currentCam]: true }))}
                       className="w-full h-auto max-h-[280px] object-cover"
                     />
 
-                    {/* REAL-TIME ML DYNAMIC YOLO GREEN BOUNDING BOX */}
-                    {isPlateDetected && (
+                    {/* Model-derived plate region overlay */}
+                    {isPlateDetected && plateBox && (
                       <>
                         <div
                           className="absolute pointer-events-none z-20 transition-all duration-150 ease-out"
@@ -276,10 +307,10 @@ export function EvidenceViewer({
                             </div>
 
                             <div className="absolute -top-6 left-0 flex items-center gap-1.5 rounded-xs bg-emerald-500 px-2 py-0.5 text-[10px] font-mono font-black text-slate-950 shadow-md whitespace-nowrap">
-                              <span className="h-1.5 w-1.5 rounded-full bg-slate-950 animate-ping" />
-                              <span className="tracking-widest">{targetPlate}</span>
+                              <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
+                              <span className="tracking-widest">{detectedPlate || "PLATE REGION"}</span>
                               <span className="bg-slate-950 text-emerald-300 px-1 rounded-xs text-[9px]">
-                                {Math.round(trackingConfidence * 100)}% {modelTag}
+                                {trackingConfidence == null ? "OCR UNREADABLE" : Math.round(trackingConfidence * 100) + "% OCR · DET " + modelTag}
                               </span>
                             </div>
                           </div>
@@ -322,7 +353,7 @@ export function EvidenceViewer({
                           type="button"
                           onClick={togglePlay}
                           className="flex h-6 w-6 items-center justify-center rounded-xs bg-slate-800 text-white hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
-                          title={isPlaying ? "Pause Feed" : "Play Feed"}
+                          title={isPlaying ? "Pause Archive" : "Play Archive"}
                         >
                           {isPlaying ? "❚❚" : "▶"}
                         </button>
@@ -488,9 +519,11 @@ export function EvidenceViewer({
                   <dd className="text-right">
                     <ConfidenceBadge
                       value={
-                        (activePoint?.detectionConfidence ?? 0.942) > 1
-                          ? (activePoint?.detectionConfidence ?? 94.2) / 100
-                          : activePoint?.detectionConfidence ?? 0.942
+                        activePoint?.detectionConfidence == null
+                          ? null
+                          : activePoint.detectionConfidence > 1
+                            ? activePoint.detectionConfidence / 100
+                            : activePoint.detectionConfidence
                       }
                       label="Detection"
                     />

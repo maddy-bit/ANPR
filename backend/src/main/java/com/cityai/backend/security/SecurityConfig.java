@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable()) // stateless JSON API, no cookies/sessions involved
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/detections/**").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/videos/*/complete").authenticated()
                         .requestMatchers("/api/audit/**").authenticated()
                         .anyRequest().permitAll())
                 .httpBasic(basic -> {});

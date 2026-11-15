@@ -42,6 +42,7 @@ public class TrajectoryEngine {
         this.scoringService = scoringService;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public TrajectoryEngine(
             VehicleRepository vehicleRepository,
             VehicleDetectionRepository detectionRepository,

@@ -46,6 +46,17 @@ export function TrajectoryInvestigationDashboard() {
   const activeRequestIdRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Idiomatic React 19 pattern: Adjust state during render when selected identity changes
+  const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
+  if (selectedIdentityId !== prevSelectedId) {
+    setPrevSelectedId(selectedIdentityId);
+    if (selectedIdentityId) {
+      setLoading(true);
+      setErrorMessage(null);
+      setSelectedObsId(null);
+    }
+  }
+
   // Load recent global vehicle identities on mount
   useEffect(() => {
     let cancelled = false;
@@ -54,8 +65,8 @@ export function TrajectoryInvestigationDashboard() {
         if (!cancelled) {
           setIdentities(page.content || []);
           setIdentitiesLoading(false);
-          if (page.content && page.content.length > 0 && !selectedIdentityId) {
-            setSelectedIdentityId(page.content[0].id);
+          if (page.content && page.content.length > 0) {
+            setSelectedIdentityId((prev) => prev || page.content[0].id);
           }
         }
       })
@@ -81,10 +92,6 @@ export function TrajectoryInvestigationDashboard() {
 
     // 2. Increment request ID to ignore stale responses
     const requestId = ++activeRequestIdRef.current;
-
-    setLoading(true);
-    setErrorMessage(null);
-    setSelectedObsId(null);
 
     Promise.all([
       getGlobalTrajectory(id, { signal: controller.signal }),
@@ -161,7 +168,7 @@ export function TrajectoryInvestigationDashboard() {
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-              <span>🛰️</span>
+              <span>ðŸ›°ï¸</span>
               <span>Multi-Camera Vehicle Trajectory Investigation</span>
             </h2>
             <p className="text-xs text-slate-500 font-mono mt-0.5">
@@ -172,7 +179,7 @@ export function TrajectoryInvestigationDashboard() {
           <form onSubmit={handleSearch} className="flex items-center gap-2">
             <input
               type="text"
-              placeholder="Search UUID, Label, or Plate (e.g. MH12TR9999)..."
+              placeholder="Search UUID, label, or plate..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-72 sm:w-80 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-800 focus:bg-white focus:outline-none"
@@ -188,7 +195,7 @@ export function TrajectoryInvestigationDashboard() {
 
         {searchError && (
           <div className="rounded-xs border border-rose-300 bg-rose-50 px-3 py-1.5 font-mono text-xs text-rose-800">
-            ⚠️ {searchError}
+            âš ï¸ {searchError}
           </div>
         )}
 
@@ -242,7 +249,7 @@ export function TrajectoryInvestigationDashboard() {
       {/* Error State */}
       {!loading && errorMessage && (
         <div className="flex flex-col items-center justify-center rounded-md border-2 border-rose-300 bg-rose-50 p-8 shadow-xs text-center font-mono">
-          <span className="text-3xl mb-2">⚠️</span>
+          <span className="text-3xl mb-2">âš ï¸</span>
           <div className="text-sm font-bold uppercase text-rose-900 tracking-wider">
             Trajectory Reconstruction Error
           </div>
@@ -282,7 +289,7 @@ export function TrajectoryInvestigationDashboard() {
               <span className="text-[10px] uppercase text-slate-400 font-bold">Review Status</span>
               <span className="text-sm font-bold text-emerald-700">{trajectory.reviewStatus}</span>
               <span className="text-[10px] text-slate-500">
-                {trajectory.hasImpossibleTransitions ? "⚠️ Disconnected" : "✓ Continuous"}
+                {trajectory.hasImpossibleTransitions ? "âš ï¸ Disconnected" : "âœ“ Continuous"}
               </span>
             </div>
 
@@ -306,7 +313,7 @@ export function TrajectoryInvestigationDashboard() {
           {/* Empty Trajectory State */}
           {trajectory.confirmedObservations === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-md border border-slate-300 bg-white p-12 text-center font-mono">
-              <span className="text-3xl mb-2">🛰️</span>
+              <span className="text-3xl mb-2">ðŸ›°ï¸</span>
               <div className="text-sm font-bold uppercase text-slate-800">No Confirmed Sightings</div>
               <p className="text-xs text-slate-500 mt-1 max-w-md">
                 This global identity has zero confirmed observations. Unverified or rejected sightings are strictly excluded.
@@ -323,7 +330,7 @@ export function TrajectoryInvestigationDashboard() {
                     transitions={trajectory.transitions}
                     segments={trajectory.segments}
                     selectedObservationId={selectedObsId}
-                    onSelectObservation={(id) => setSelectedObsId(id)}
+                    onSelectObservation={(id: number) => setSelectedObsId(id)}
                   />
                 </div>
 
@@ -337,7 +344,7 @@ export function TrajectoryInvestigationDashboard() {
               <div className="flex flex-col gap-3 rounded-md border border-slate-300 bg-white p-4 font-mono shadow-xs">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                    <span>⏱️</span>
+                    <span>â±ï¸</span>
                     <span>Chronological Sighting Timeline & Transition Audit</span>
                   </div>
                   <span className="text-[10px] text-slate-500 font-mono">
@@ -371,7 +378,7 @@ export function TrajectoryInvestigationDashboard() {
                       </div>
                       {seg.breakReason && (
                         <div className="mt-1 rounded-xs border border-rose-300 bg-rose-50 px-2 py-1 text-[10px] text-rose-800">
-                          ⚠️ {seg.breakReason}
+                          âš ï¸ {seg.breakReason}
                         </div>
                       )}
                     </div>
@@ -464,7 +471,7 @@ export function TrajectoryInvestigationDashboard() {
                           <div className="ml-6 pl-4 border-l-2 border-dashed border-slate-300 py-1 flex flex-col gap-1 text-[11px]">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[10px] font-bold text-slate-400 uppercase">
-                                Transition: {transitionToNext.fromCameraId} → {transitionToNext.toCameraId}
+                                Transition: {transitionToNext.fromCameraId} â†’ {transitionToNext.toCameraId}
                               </span>
 
                               <span className={`px-1.5 py-0.5 rounded-xs text-[9px] font-bold ${
@@ -511,4 +518,5 @@ export function TrajectoryInvestigationDashboard() {
     </div>
   );
 }
+
 

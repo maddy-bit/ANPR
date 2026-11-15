@@ -18,15 +18,65 @@ _MODELS_DIR = _AI_SERVICE_ROOT / "models"
 _DATA_DIR = _REPO_ROOT / "data"
 
 
+def _resolve_model_path(filename: str) -> Path:
+    """
+    Resolve model path with fallback across:
+    1. Environment variable MODEL_CACHE_DIR
+    2. Local ai-service/models/
+    3. Main repo root / models/ or ai-service/models/ (e.g. when running in git worktrees)
+    4. Git worktree parent gitdir traversal
+    """
+    import os
+    env_dir = os.environ.get("MODEL_CACHE_DIR")
+    if env_dir:
+        p = Path(env_dir) / filename
+        if p.exists():
+            return p
+
+    default_path = _MODELS_DIR / filename
+    if default_path.exists():
+        return default_path
+
+    # Check repo root
+    repo_cand = _REPO_ROOT / "models" / filename
+    if repo_cand.exists():
+        return repo_cand
+    repo_ai_cand = _REPO_ROOT / "ai-service" / "models" / filename
+    if repo_ai_cand.exists():
+        return repo_ai_cand
+
+    # Check git worktree link to main repo
+    git_file = _REPO_ROOT / ".git"
+    if git_file.is_file():
+        try:
+            content = git_file.read_text(encoding="utf-8").strip()
+            if content.startswith("gitdir:"):
+                gitdir = Path(content.split(":", 1)[1].strip())
+                main_repo = gitdir.parents[2]
+                cand = main_repo / "ai-service" / "models" / filename
+                if cand.exists():
+                    return cand
+        except Exception:
+            pass
+
+    return default_path
+
+
+def _resolve_model_directory() -> Path:
+    import os
+    env_dir = os.environ.get("MODEL_CACHE_DIR")
+    return Path(env_dir) / "easyocr" if env_dir else _MODELS_DIR / "easyocr"
+
+
 @dataclass
 class ModelPaths:
-    vehicle_detector: Path = _MODELS_DIR / "yolov8s.pt"
+    vehicle_detector: Path = field(default_factory=lambda: _resolve_model_path("yolov8s.pt"))
     # Preferred: fine-tuned LP model. Fallback: pretrained HF model downloaded at runtime.
-    plate_detector: Path = _MODELS_DIR / "plate_detector_yolov8n.pt"
+    plate_detector: Path = field(default_factory=lambda: _resolve_model_path("plate_detector_yolov8n.pt"))
     # Pretrained fallback (downloaded from HF on first use if fine-tuned not present)
     plate_detector_pretrained_id: str = "keremberke/yolov8n-license-plate-detection"
     # Phase A5: FastReID ResNet-50-IBN vehicle-specific metric learning model
-    reid_model: Path = _MODELS_DIR / "veri_sbs_R50-ibn.pth"
+    reid_model: Path = field(default_factory=lambda: _resolve_model_path("veri_sbs_R50-ibn.pth"))
     reid_expected_sha256: str = "57FB9C17D88911EA64390BF5427F43511435E7F88F6EED9DBC969D4B611E53CD"
 
 
@@ -71,6 +121,10 @@ class OCRConfig:
     min_plate_height: int = 20
     # Target height for plate resize before OCR
     target_plate_height: int = 80
+    # Directory holding bundled EasyOCR weights (craft_mlt_25k.pth, english_g2.pth).
+    # When both files exist there, the reader loads them directly instead of
+    # ~/.EasyOCR, so no first-run download is required.
+    model_storage_dir: Path = field(default_factory=_resolve_model_directory)
 
 
 @dataclass
@@ -88,9 +142,9 @@ class PreprocessingConfig:
 
 @dataclass
 class ReIDConfig:
-    # Phase A5: FastReID ResNet-50-IBN 2048-dim embedding
+    # Phase B4.1: FastReID SBS ResNet-50-IBN 2048-dim embedding
     model_name: str = "fastreid_veri_sbs_r50_ibn"
-    model_version: str = "veri-776-v1"
+    model_version: str = "veri-776-sbs-ibn-v2"
     embedding_dim: int = 2048
     # Normalize inputs to ImageNet stats
     imagenet_mean: tuple[float, float, float] = (0.485, 0.456, 0.406)
