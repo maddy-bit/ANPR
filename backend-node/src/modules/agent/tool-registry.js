@@ -29,8 +29,11 @@ function parseTimestamp(value) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-async function findDetectionsInCase(caseId, plate) {
-  if (!caseId) return vehicleRepo.findDetectionsByPlate(plate);
+async function findDetectionsInCase(caseId, plate, limit = null) {
+  if (!caseId) {
+    const rows = await vehicleRepo.findDetectionsByPlate(plate);
+    return limit == null ? rows : rows.slice(0, limit);
+  }
   const result = await query(
     'SELECT d.id, d.camera_id AS "cameraId", c.name AS "cameraName", c.latitude, c.longitude, ' +
     'd.timestamp, d.detection_confidence AS "confidence", d.plate_text_normalized AS "plateText", ' +
@@ -47,8 +50,8 @@ async function findDetectionsInCase(caseId, plate) {
     '(d.location IS NOT NULL AND ST_DWithin(d.location, ' +
     'ST_SetSRID(ST_MakePoint(i.search_center_lon, i.search_center_lat), 4326)::geography, ' +
     'i.search_radius_km * 1000))) ' +
-    'ORDER BY d.timestamp ASC, d.id ASC',
-    [caseId, plate]
+    'ORDER BY d.timestamp ASC, d.id ASC' + (limit == null ? '' : ' LIMIT $3'),
+    limit == null ? [caseId, plate] : [caseId, plate, limit]
   );
   return result.rows;
 }
@@ -144,15 +147,18 @@ const tools = {
   /**
    * Reconstruct and validate vehicle trajectory
    */
-  async get_vehicle_trajectory({ plate, caseId }) {
+  async get_vehicle_trajectory({ plate, caseId, limit = 1000 }) {
     if (!plate) throw new Error('Missing parameter: plate');
     const norm = normalize(plate);
-    const detections = await findDetectionsInCase(caseId, norm);
+    const boundedLimit = Math.max(1, Math.min(10000, parseInt(limit, 10) || 1000));
+    const detections = await findDetectionsInCase(caseId, norm, boundedLimit + 1);
 
     if (!detections || detections.length === 0) {
       return { found: false, plate: norm, points: [], segments: [] };
     }
 
+    const truncated = detections.length > boundedLimit;
+    if (truncated) detections.length = boundedLimit;
     const points = [];
     const segments = [];
     let totalDistanceMeters = 0;
@@ -206,6 +212,7 @@ const tools = {
       found: true,
       plate: norm,
       totalObservations: points.length,
+      truncated,
       totalDistanceKm: hasIncompleteDistance ? null : Math.round((totalDistanceMeters / 1000.0) * 10) / 10,
       points,
       segments,
@@ -347,3 +354,4 @@ module.exports = {
     return await tools[name](params);
   },
 };
+

@@ -1493,6 +1493,43 @@ export interface AgentChatResponse {
   structuredData?: AgentStructuredData | null;
 }
 
+export interface InvestigationTrackingJobDto {
+  id: string;
+  caseId: string;
+  targetPlate: string;
+  mode: 'HISTORIC' | 'LIVE' | 'HYBRID';
+  status: 'QUEUED' | 'RUNNING' | 'WAITING_FOR_OBSERVATIONS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string;
+  requestedAt: string;
+  expiresAt: string;
+  cursorDetectionId: number;
+  result: {
+    historical?: { points?: Array<Record<string, unknown>> };
+    observedPoints?: Array<Record<string, unknown>>;
+    observedPointCount?: number;
+    observedPointsTruncated?: boolean;
+    routeExpansions?: Array<Record<string, unknown>>;
+    warnings?: string[];
+    [key: string]: unknown;
+  };
+  errorCode: string | null;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export async function getInvestigationTrackingJob(caseId: string, jobId: string, options?: { signal?: AbortSignal }) {
+  return apiFetch<InvestigationTrackingJobDto>(
+    `/agent/cases/${encodeURIComponent(caseId)}/jobs/${encodeURIComponent(jobId)}`,
+    { signal: options?.signal },
+  );
+}
+
+export async function cancelInvestigationTrackingJob(caseId: string, jobId: string, options?: { signal?: AbortSignal }) {
+  return apiFetch<{ id: string; caseId: string; status: string }>(
+    `/agent/cases/${encodeURIComponent(caseId)}/jobs/${encodeURIComponent(jobId)}`,
+    { method: 'DELETE', signal: options?.signal },
+  );
+}
+
 export async function sendAgentMessage(
   message: string,
   conversationId?: string,
@@ -1663,3 +1700,4 @@ export async function getDetailedSystemHealth(
 ): Promise<SystemDetailedHealthDto> {
   return apiFetch<SystemDetailedHealthDto>('/system/health/detailed', { signal: options?.signal });
 }
+

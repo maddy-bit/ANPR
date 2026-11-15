@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { sendAgentMessage, listInvestigations, AgentChatMessage, AgentChatResponse, InvestigationDto } from "@/lib/api";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { sendAgentMessage, listInvestigations, getCameras, getInvestigationTrackingJob, AgentChatMessage, AgentChatResponse, InvestigationDto, InvestigationTrackingJobDto, TrajectoryPointDto, CameraDto } from "@/lib/api";
 import Link from "next/link";
+import { InvestigationMap } from "@/components/InvestigationMap";
 
 const QUICK_PROMPTS = [
   "Track a specified vehicle plate across cameras",
@@ -29,6 +30,10 @@ export function AgentInvestigationPanel() {
   const [caseId, setCaseId] = useState("");
   const [caseListError, setCaseListError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [trackingJob, setTrackingJob] = useState<InvestigationTrackingJobDto | null>(null);
+  const [cameras, setCameras] = useState<CameraDto[]>([]);
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
+  const [replayToken, setReplayToken] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +57,57 @@ export function AgentInvestigationPanel() {
       });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void getCameras({ signal: controller.signal }).then(setCameras).catch(() => setCameras([]));
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!trackingJob || !caseId || ["COMPLETED", "FAILED", "CANCELLED"].includes(trackingJob.status)) return;
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const latest = await getInvestigationTrackingJob(caseId, trackingJob.id, { signal: controller.signal });
+        if (!controller.signal.aborted) setTrackingJob(latest);
+        if (!controller.signal.aborted && !["COMPLETED", "FAILED", "CANCELLED"].includes(latest.status)) {
+          timeout = setTimeout(poll, 3000);
+        }
+      } catch {
+        if (!controller.signal.aborted) timeout = setTimeout(poll, 6000);
+      }
+    };
+    timeout = setTimeout(poll, 1000);
+    return () => {
+      controller.abort();
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [trackingJob?.id, trackingJob?.status, caseId]);
+
+  const mapPoints: TrajectoryPointDto[] = useMemo(() => {
+    const observed = trackingJob?.result?.observedPoints || [];
+    return observed.filter((point) => {
+      const lat = Number(point.latitude);
+      const lon = Number(point.longitude);
+      return point.latitude != null && point.longitude != null && Number.isFinite(lat) && Number.isFinite(lon)
+        && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+    }).map((point) => ({
+      cameraId: String(point.cameraId || "UNKNOWN"),
+      cameraName: String(point.cameraName || point.cameraId || "Unknown camera"),
+      latitude: Number(point.latitude),
+      longitude: Number(point.longitude),
+      direction: null,
+      timestamp: String(point.timestamp || ""),
+      plateConfidence: null,
+      detectionConfidence: typeof point.confidence === "number" ? point.confidence : null,
+      imagePath: null,
+      detectionCount: 1,
+      incomingTransitionConfidence: null,
+      transitionNote: "Persisted detection; association remains based on source OCR/provenance.",
+    }));
+  }, [trackingJob?.result?.observedPoints]);
 
   const handleSend = async (messageText?: string) => {
     const textToSend = messageText || input;
@@ -84,6 +140,11 @@ export function AgentInvestigationPanel() {
       }
       if (response.plan?.targetPlate) {
         setActivePlate(response.plan.targetPlate);
+      }
+      const responseJob = response.structuredData?.job;
+      if (responseJob && typeof responseJob === "object" && "id" in responseJob) {
+        setTrackingJob(responseJob as InvestigationTrackingJobDto);
+        setSelectedPointIndex(null);
       }
 
       const agentMsg: AgentChatMessage = {
@@ -127,7 +188,7 @@ export function AgentInvestigationPanel() {
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Case-scoped historical vehicle search
+                Case-scoped investigation jobs
               </p>
             </div>
           </div>
@@ -190,6 +251,27 @@ export function AgentInvestigationPanel() {
         </div>
 
         {/* Message Log */}
+        {trackingJob && (
+          <section className="border-b border-slate-200 bg-slate-50 p-3" aria-label="Investigation tracking map">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+              <span>Job {trackingJob.id} Â· {trackingJob.mode} Â· {trackingJob.status} Â· {Number(trackingJob.result?.observedPointCount) || mapPoints.length} observed detections Â· {mapPoints.length} mapped</span>
+              {!["COMPLETED", "FAILED", "CANCELLED"].includes(trackingJob.status) && (
+                <button type="button" className="rounded border border-slate-300 bg-white px-2 py-1" onClick={async () => {
+                  const { cancelInvestigationTrackingJob } = await import("@/lib/api");
+                  const cancelled = await cancelInvestigationTrackingJob(caseId, trackingJob.id);
+                  setTrackingJob((current) => current ? { ...current, status: cancelled.status } : current);
+                }}>Stop tracking</button>
+              )}
+              {trackingJob.result?.warnings?.length ? <span>{trackingJob.result.warnings.join(" ")}</span> : null}
+              {trackingJob.result?.observedPointsTruncated ? <span>The map shows the newest 5,000 observations for this job.</span> : null}
+            </div>
+            <div className="max-h-[45vh] overflow-hidden rounded-lg">
+              <InvestigationMap cameras={cameras} points={mapPoints} selectedIndex={selectedPointIndex}
+                onSelectPoint={setSelectedPointIndex} replayToken={replayToken} />
+            </div>
+            {mapPoints.length > 1 ? <button type="button" className="mt-2 rounded border border-slate-300 bg-white px-2 py-1 text-xs" onClick={() => setReplayToken((value) => value + 1)}>Replay observed route</button> : null}
+          </section>
+        )}
         <div className="flex-1 p-6 overflow-y-auto space-y-4">
           {messages.map((msg, index) => (
             <div

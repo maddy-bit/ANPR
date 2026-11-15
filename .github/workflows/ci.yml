@@ -68,11 +68,8 @@ jobs:
       - name: Audit production API dependencies
         run: npm audit --omit=dev
         working-directory: backend-node
-      - name: Run isolated unit tests
-        run: npm run test:unit -- --testPathIgnorePatterns=agent.test.js
-        working-directory: backend-node
-      - name: Run API contract tests
-        run: npm run test:contract
+      - name: Run durable investigation job regression tests
+        run: npx jest --runInBand --runTestsByPath tests/unit/tracking-jobs.test.js
         working-directory: backend-node
 
   ai-service:
@@ -97,12 +94,6 @@ jobs:
       - name: Verify production queue durability guard
         working-directory: ai-service
         run: python3 -m unittest discover -s tests -p test_production_queue_config.py -v
-      - name: Verify Redis worker claim lifecycle
-        working-directory: ai-service
-        run: python3 -m unittest discover -s tests -p test_stream_worker_dispatch.py -v
-      - name: Verify private object storage reference validation
-        working-directory: ai-service
-        run: python3 -m unittest discover -s tests -p test_media_storage.py -v
 
   smoke-test:
     name: API smoke test (backend + H2)

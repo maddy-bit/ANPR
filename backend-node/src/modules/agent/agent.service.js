@@ -11,6 +11,8 @@ const memory = require('./conversation-memory');
 const investigationRepo = require('../investigations/investigation.repository');
 const plateNormalizer = require('../../utils/plate-normalizer');
 const logger = require('../../config/logger');
+const trackingJobs = require('./tracking-jobs.service');
+const crypto = require('crypto');
 
 function formatObservedTime(value) {
   if (value == null || value === '') return 'UNKNOWN';
@@ -51,29 +53,6 @@ async function processUserMessage({ message, conversationId, caseId = null, acti
   });
   const intent = recognizeIntent(message);
   const mode = recognizeInvestigationMode(message);
-
-  if (mode === INVESTIGATION_MODES.LIVE) {
-    const reply = 'Live camera capture and real-time vehicle matching are not available in this deployment. The current system can search recorded-video results and historical sightings only; no live feed was opened or checked. Provide an authorized camera source and enable the live ingestion service before requesting live tracking.';
-    memory.updateSession(actor, session.id, {
-      message: { role: 'user', content: message, timestamp: new Date() },
-    });
-    memory.updateSession(actor, session.id, {
-      message: { role: 'assistant', content: reply, timestamp: new Date() },
-    });
-    return {
-      reply,
-      conversationId: session.id,
-      intent,
-      mode,
-      plan: null,
-      structuredData: {
-        type: 'MODE_STATUS',
-        requestedMode: mode,
-        status: 'UNAVAILABLE',
-        availableMode: INVESTIGATION_MODES.HISTORIC,
-      },
-    };
-  }
 
   const caseRequiredIntents = new Set([
     INTENTS.TRACE_VEHICLE,
@@ -162,6 +141,52 @@ async function processUserMessage({ message, conversationId, caseId = null, acti
   // Update session active plate
   if (plan.targetPlate) {
     session.activePlate = plan.targetPlate;
+  }
+
+  // Vehicle tracking runs as a durable, case-scoped worker job. Historic mode
+  // completes after reading stored detections; live and hybrid keep watching
+  // for later persisted observations until the configured job expiry.
+  if (intent === INTENTS.TRACE_VEHICLE) {
+    const hasCaseSearchScope = caseItem && caseItem.search_center_lat != null
+      && caseItem.search_center_lon != null && caseItem.search_radius_km != null
+      && caseItem.search_start_at && caseItem.search_end_at;
+    if (!hasCaseSearchScope) {
+      const reply = 'Configure this case with a map centre, search radius, and start/end time window before starting a tracking job.';
+      return {
+        reply,
+        conversationId: session.id,
+        intent,
+        mode,
+        plan: null,
+        structuredData: { type: 'CASE_SCOPE_REQUIRED', status: 'NEEDS_SCOPE', caseId: selectedCaseId },
+      };
+    }
+    const requestKey = crypto.randomUUID();
+    const job = await trackingJobs.enqueue({
+      caseId: selectedCaseId,
+      plate: plan.targetPlate,
+      mode,
+      requestKey,
+    });
+    const liveNote = mode === INVESTIGATION_MODES.HISTORIC
+      ? 'Historical detections are being read from this case. The map will update when the job returns observed points.'
+      : 'The job will watch for newly persisted detections for this case. It does not connect to camera feeds or run new video inference.';
+    const reply = `Tracking job ${job.id} was queued for ${mode.toLowerCase()} search. ${liveNote}`;
+    const structuredData = {
+      type: 'TRACKING_JOB',
+      job,
+      requestedMode: mode,
+      sourceStatus: mode === INVESTIGATION_MODES.HISTORIC ? 'PERSISTED_DETECTIONS' : 'PERSISTED_DETECTIONS_ONLY',
+    };
+    memory.updateSession(actor, session.id, {
+      activePlate: session.activePlate,
+      activeCaseId: selectedCaseId,
+      message: { role: 'user', content: message, timestamp: new Date() },
+    });
+    memory.updateSession(actor, session.id, {
+      message: { role: 'assistant', content: reply, structuredData, timestamp: new Date() },
+    });
+    return { reply, conversationId: session.id, intent, mode, plan, structuredData };
   }
 
   // Execute plan steps safely

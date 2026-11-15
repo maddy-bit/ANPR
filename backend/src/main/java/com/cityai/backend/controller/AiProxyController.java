@@ -20,6 +20,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Objects;
 
 /**
@@ -263,3 +264,4 @@ public class AiProxyController {
         }
     }
 }
+

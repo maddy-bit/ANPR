@@ -69,14 +69,14 @@ async function insertDetection(data, client) {
       plate_confidence, plate_text_raw, plate_text_normalized,
       reid_confidence, reid_embedding, reid_model_name, reid_model_version, reid_dimension,
       image_path, track_id, frame_number, video_upload_id, processing_run_id, idempotency_key,
-      global_identity_id, bbox
+      global_identity_id, bbox, ingested_at
     ) VALUES (
       $1, $2, $3, $4, $5,
       $6, $7, $8, $9,
       $10, $11, $12,
       $13, $14, $15, $16, $17,
       $18, $19, $20, $21, $22, $23,
-      $24, $25
+      $24, $25, NOW()
     )
     ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
     RETURNING id, camera_id AS "cameraId", vehicle_id AS "vehicleId", timestamp,
@@ -181,3 +181,4 @@ module.exports = {
   findById,
   findCandidates,
 };
+

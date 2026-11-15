@@ -11,6 +11,7 @@ const { closeRedis } = require('./integrations/redis/client');
 const { setupLiveTrackingWebSocket } = require('./websocket/live-tracking');
 const { startRecoveryWorker, stopRecoveryWorker } = require('./modules/processing/outbox.service');
 const { startCameraSourceSync, stopCameraSourceSync } = require('./modules/cameras/camera-source.service');
+const { startWorker: startInvestigationWorker, stopWorker: stopInvestigationWorker } = require('./modules/agent/tracking-jobs.service');
 
 const server = http.createServer(app);
 
@@ -30,6 +31,7 @@ setupLiveTrackingWebSocket(server);
 // Start durable AI job recovery worker
 startRecoveryWorker();
 startCameraSourceSync();
+startInvestigationWorker();
 
 server.listen(config.port, config.host, () => {
   logger.info('CityAI Node.js Backend listening on %s:%d (%s mode)', config.host, config.port, config.env);
@@ -47,6 +49,7 @@ async function handleShutdown(signal) {
     logger.info('HTTP server closed');
     stopRecoveryWorker();
     stopCameraSourceSync();
+    stopInvestigationWorker();
     try {
       await closePool();
       await closeRedis();
@@ -77,3 +80,4 @@ process.on('uncaughtException', (err) => {
 });
 
 module.exports = server;
+
