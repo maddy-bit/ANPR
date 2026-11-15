@@ -13,7 +13,22 @@ function getBucket() {
 
 function getClient() {
   if (!config.storage.s3Region) throw new Error('AWS_REGION must be configured when STORAGE_PROVIDER=S3');
-  if (!client) client = new S3Client({ region: config.storage.s3Region });
+  const accessKeyId = config.storage.s3AccessKeyId;
+  const secretAccessKey = config.storage.s3SecretAccessKey;
+  if (Boolean(accessKeyId) !== Boolean(secretAccessKey)) {
+    throw new Error('AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be configured together');
+  }
+  if (config.storage.s3Endpoint && !accessKeyId) {
+    throw new Error('AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required with S3_ENDPOINT');
+  }
+
+  if (!client) {
+    client = new S3Client({
+      region: config.storage.s3Region,
+      ...(config.storage.s3Endpoint ? { endpoint: config.storage.s3Endpoint } : {}),
+      ...(accessKeyId ? { credentials: { accessKeyId, secretAccessKey } } : {}),
+    });
+  }
   return client;
 }
 
@@ -51,3 +66,4 @@ function resetClientForTests() {
 }
 
 module.exports = { getBucket, getClient, uploadFile, getObject, deleteObject, resetClientForTests };
+

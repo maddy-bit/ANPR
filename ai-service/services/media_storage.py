@@ -36,9 +36,22 @@ def _s3_client() -> Any:
     region = os.environ.get("AWS_REGION")
     if not region:
         raise RuntimeError("AWS_REGION is required when processing S3-backed video uploads")
-    # boto3 uses the standard AWS credential provider chain (role credentials
-    # where available, or secret-manager environment variables on Render).
-    return boto3.client("s3", region_name=region)
+    endpoint = os.environ.get("S3_ENDPOINT", "").strip() or None
+    access_key_id = os.environ.get("AWS_ACCESS_KEY_ID", "").strip() or None
+    secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip() or None
+    if bool(access_key_id) != bool(secret_access_key):
+        raise RuntimeError("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be configured together")
+    if endpoint and not access_key_id:
+        raise RuntimeError("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required with S3_ENDPOINT")
+
+    # AWS roles remain supported when no custom endpoint or static keys are set.
+    options: dict[str, Any] = {"region_name": region}
+    if endpoint:
+        options["endpoint_url"] = endpoint
+    if access_key_id and secret_access_key:
+        options["aws_access_key_id"] = access_key_id
+        options["aws_secret_access_key"] = secret_access_key
+    return boto3.client("s3", **options)
 
 
 def head_s3_object(bucket: str | None, key: str | None) -> dict[str, Any]:
@@ -76,3 +89,4 @@ def materialize_video(storage_provider: str, video_path: str | None = None,
             os.unlink(temp_path)
         except FileNotFoundError:
             pass
+
