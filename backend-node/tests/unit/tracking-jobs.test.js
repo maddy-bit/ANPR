@@ -50,7 +50,9 @@ describe('durable investigation tracking jobs', () => {
       cursor_detection_id: 0, result: {}, lease_token: 'lease-id',
     });
 
-    expect(executeTool).toHaveBeenCalledWith('get_vehicle_trajectory', { plate: 'CASE_TARGET', caseId: 'case-id' });
+    expect(executeTool).toHaveBeenCalledWith('get_vehicle_trajectory', {
+      plate: 'CASE_TARGET', caseId: 'case-id', limit: 1000,
+    });
     expect(query.mock.calls[1][1][2]).toBe('COMPLETED');
     const persisted = JSON.parse(query.mock.calls[1][1][3]);
     expect(persisted.observedPoints).toEqual([]);
